@@ -1,0 +1,30 @@
+# Global
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.eggs/
+.dist/
+.pytest_cache/
+.mypy_cache/
+
+# Node/Frontend
+node_modules/
+dist/
+.next/
+.out/
+.vite/
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+
+# Uploaded files
+backend/document_library/
