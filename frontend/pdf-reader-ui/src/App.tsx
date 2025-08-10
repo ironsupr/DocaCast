@@ -1,12 +1,15 @@
 import React from 'react'
 import axios from 'axios'
 import UploadPdfButton from './components/UploadPdfButton'
+import GenerateAudioButton from './components/GenerateAudioButton'
 import RecommendationsSidebar, { type Recommendation } from './components/RecommendationsSidebar'
 
 type InsightsData = {
+  summary?: string
   insights: string[]
   facts: string[]
   contradictions: string[]
+  citations?: { filename?: string; page_number?: number; snippet?: string }[]
 }
 
 export default function App() {
@@ -104,6 +107,20 @@ export default function App() {
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid #e5e7eb', background: '#ffffff' }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Connecting the Dots</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          <GenerateAudioButton
+            getContext={async () => {
+              if (lastSelection && lastSelection.trim().length > 0) {
+                return { text: lastSelection }
+              }
+              if (currentFile && lastPage) {
+                return { filename: currentFile, page_number: lastPage }
+              }
+              if (currentFile) {
+                return { filename: currentFile, page_number: 1 }
+              }
+              throw new Error('No context available')
+            }}
+          />
           <button
             onClick={async () => {
               setInsightsError(null)
@@ -122,7 +139,7 @@ export default function App() {
                 } else {
                   throw new Error('No context available')
                 }
-                const res = await axios.post(`${(import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')}/insights`, payload)
+                const res = await axios.post(`${(import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')}/insights`, { ...payload, k: 5 })
                 setInsightsData(res.data as InsightsData)
               } catch (e: any) {
                 console.error('Insights failed', e)
@@ -189,6 +206,12 @@ export default function App() {
 
             {insightsData && (
               <div style={{ display: 'grid', gap: 12 }}>
+                {insightsData.summary && (
+                  <section>
+                    <h3 style={{ margin: '8px 0' }}>Summary</h3>
+                    <p style={{ margin: 0 }}>{insightsData.summary}</p>
+                  </section>
+                )}
                 <section>
                   <h3 style={{ margin: '8px 0' }}>Key insights</h3>
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
@@ -207,6 +230,33 @@ export default function App() {
                     {insightsData.contradictions?.map((s, i) => <li key={`con-${i}`}>{s}</li>)}
                   </ul>
                 </section>
+                {insightsData.citations && insightsData.citations.length > 0 && (
+                  <section>
+                    <h3 style={{ margin: '8px 0' }}>Citations</h3>
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      {insightsData.citations.map((c, i) => (
+                        <li key={`cit-${i}`}>
+                          <button
+                            onClick={() => {
+                              if (!c) return
+                              if (c.filename && c.filename !== currentFile) {
+                                pendingPageRef.current = c.page_number ?? null
+                                setCurrentFile(c.filename)
+                              } else if (c.page_number && viewerApiRef.current?.gotoLocation) {
+                                viewerApiRef.current.gotoLocation({ pageNumber: c.page_number })
+                              }
+                            }}
+                            style={{ background: 'transparent', border: 'none', color: '#2563eb', cursor: 'pointer', padding: 0 }}
+                            title={`Open ${c.filename || ''} p.${c.page_number || ''}`}
+                          >
+                            {c.filename || 'document'} p.{c.page_number}
+                          </button>
+                          {c.snippet && <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>{c.snippet}</div>}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
               </div>
             )}
           </div>

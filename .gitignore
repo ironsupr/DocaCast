@@ -28,3 +28,4 @@ pnpm-lock.yaml
 
 # Uploaded files
 backend/document_library/
+backend/generated_audio/

@@ -49,7 +49,8 @@ export default function RecommendationsSidebar({ items, onClickItem }: Props) {
             const fileLabel = rec.filename ?? 'Unknown'
             const scorePct = rec.score != null ? Math.round(rec.score * 100) : null
             const isPinned = pinned[keyOf(rec)]
-            const dlUrl = rec.filename ? `http://127.0.0.1:8001/document_library/${encodeURIComponent(rec.filename)}` : undefined
+            const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')
+            const dlUrl = rec.filename ? `${apiBase}/document_library/${encodeURIComponent(rec.filename)}` : undefined
 
             return (
               <div key={idx} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12 }}>
