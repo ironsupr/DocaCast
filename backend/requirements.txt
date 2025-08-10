@@ -5,3 +5,5 @@ pydantic
 PyMuPDF
 sentence-transformers
 faiss-cpu
+google-generativeai
+python-dotenv

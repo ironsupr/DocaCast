@@ -16,7 +16,8 @@ export default function UploadPdfButton({ onUploaded }: Props) {
     const form = new FormData()
     for (const f of Array.from(files)) form.append('files', f)
     try {
-      const res = await axios.post('http://127.0.0.1:8001/upload', form, {
+      const api = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')
+      const res = await axios.post(`${api}/upload`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       const filenames: string[] = res.data?.saved ?? []

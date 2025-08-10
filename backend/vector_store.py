@@ -16,14 +16,15 @@ class VectorStore:
         self.index: Optional[faiss.Index] = None
         self.dim: Optional[int] = None
         if dim is not None:
-            self.index = faiss.IndexFlatL2(dim)
+            # Use inner product (with normalized embeddings this is cosine similarity)
+            self.index = faiss.IndexFlatIP(dim)
             self.dim = dim
         self.texts: List[str] = []
         self.metadatas: List[Dict[str, Any]] = []
 
     def _ensure_index(self, dim: int) -> None:
         if self.index is None:
-            self.index = faiss.IndexFlatL2(dim)
+            self.index = faiss.IndexFlatIP(dim)
             self.dim = dim
         elif self.dim is not None and self.dim != dim:
             raise ValueError(f"Embedding dimension mismatch: store={self.dim}, incoming={dim}")
@@ -57,10 +58,11 @@ class VectorStore:
 
         return embeddings.shape[0]
 
-    def search(self, query_embedding: List[float] | np.ndarray, k: int = 5) -> List[Dict[str, Any]]:
-        """Search for the top-k nearest chunks given a query embedding.
+    def search(self, query_embedding: List[float] | np.ndarray, k: int = 5, fetch_k: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Search for the top-k most similar chunks given a query embedding.
 
-        Returns a list of dicts with: text, metadata, distance
+        Uses inner product on normalized vectors (i.e., cosine similarity).
+        Returns a list of dicts with: text, metadata, score, distance (1 - score)
         """
         if self.index is None or self.index.ntotal == 0:
             return []
@@ -70,7 +72,8 @@ class VectorStore:
         if self.dim is not None and q.shape[1] != self.dim:
             raise ValueError(f"Query embedding dimension mismatch: store={self.dim}, query={q.shape[1]}")
 
-        distances, indices = self.index.search(q, k)
+        nprobe = fetch_k if fetch_k is not None else k
+        distances, indices = self.index.search(q, nprobe)
         idxs = indices[0].tolist()
         dists = distances[0].tolist()
 
@@ -78,9 +81,13 @@ class VectorStore:
         for i, dist in zip(idxs, dists):
             if i < 0:
                 continue
+            score = float(dist)  # inner product on normalized vectors ∈ [-1, 1]
             results.append({
                 "text": self.texts[i],
                 "metadata": self.metadatas[i],
-                "distance": float(dist),
+                "score": score,
+                # Back-compat: pseudo-distance as (1 - score) for cosine
+                "distance": 1.0 - score,
             })
-        return results
+        # Trim to k in case fetch_k > k
+        return results[:k]
