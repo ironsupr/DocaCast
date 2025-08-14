@@ -3,6 +3,7 @@ import axios from 'axios'
 import UploadPdfButton from './components/UploadPdfButton'
 import GenerateAudioButton from './components/GenerateAudioButton'
 import RecommendationsSidebar, { type Recommendation } from './components/RecommendationsSidebar'
+import FilePicker from './components/FilePicker'
 
 type InsightsData = {
   summary?: string
@@ -107,6 +108,7 @@ export default function App() {
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid #e5e7eb', background: '#ffffff' }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Connecting the Dots</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          <FilePicker currentFile={currentFile} onChange={(f) => setCurrentFile(f)} />
           <GenerateAudioButton
             getContext={async () => {
               if (lastSelection && lastSelection.trim().length > 0) {
