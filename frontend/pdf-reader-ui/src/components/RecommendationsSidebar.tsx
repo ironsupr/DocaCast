@@ -4,6 +4,8 @@ export type Recommendation = {
   snippet: string
   filename?: string
   page_number?: number
+  section_title?: string
+  section_index?: number
   distance?: number
   score?: number
 }
@@ -35,12 +37,19 @@ export default function RecommendationsSidebar({ items, onClickItem }: Props) {
   }
 
   return (
-    <aside style={{ width: 360, padding: 16, borderLeft: '1px solid #e5e7eb', background: '#ffffff', overflow: 'auto' }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Recommendations</h2>
+    <div style={{ height: '100%', overflow: 'auto' }}>
       {items.length === 0 ? (
-        <p style={{ color: '#6b7280' }}>Interact with the PDF to see recommendations.</p>
+        <div style={{ 
+          padding: 16,
+          textAlign: 'center',
+          color: '#6b7280',
+          fontSize: 13
+        }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>📄</div>
+          <div>Interact with the PDF to see recommendations.</div>
+        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '8px 0' }}>
           {items.map((rec, idx) => {
             const showAll = !!expanded[idx]
             const text = rec.snippet ?? ''
@@ -52,11 +61,11 @@ export default function RecommendationsSidebar({ items, onClickItem }: Props) {
             const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')
             const dlUrl = rec.filename ? `${apiBase}/document_library/${encodeURIComponent(rec.filename)}` : undefined
 
-            return (
+      return (
               <div key={idx} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>
-                    {fileLabel} • Page {rec.page_number ?? '-'}
+        {fileLabel} • Page {rec.page_number ?? '-'}{rec.section_title ? ` • ${rec.section_title}` : ''}
                   </div>
                   {scorePct !== null && (
                     <span style={{ fontSize: 12, color: '#065f46', background: '#d1fae5', border: '1px solid #10b981', borderRadius: 999, padding: '2px 8px' }}>
@@ -89,6 +98,6 @@ export default function RecommendationsSidebar({ items, onClickItem }: Props) {
           })}
         </div>
       )}
-    </aside>
+    </div>
   )
 }

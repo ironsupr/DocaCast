@@ -23,6 +23,6 @@ VITE_API_BASE_URL=http://127.0.0.1:8001
 ```
 
 Notes:
+
 - Backend loads .env via python-dotenv.
 - Frontend requires variables prefixed with `VITE_`.
-

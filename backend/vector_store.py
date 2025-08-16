@@ -76,6 +76,11 @@ class VectorStore:
             }
             if filename:
                 meta["filename"] = filename
+            # Optional section metadata from processing
+            if "section_title" in d:
+                meta["section_title"] = d.get("section_title")
+            if "section_index" in d:
+                meta["section_index"] = d.get("section_index")
             self.texts.append(text)
             self.metadatas.append(meta)
 

@@ -6,6 +6,9 @@ PyMuPDF
 sentence-transformers
 faiss-cpu
 google-generativeai
+google-cloud-texttospeech
 python-dotenv
 pyttsx3
 requests
+pydub
+edge-tts

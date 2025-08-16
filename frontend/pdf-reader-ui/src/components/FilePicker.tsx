@@ -4,9 +4,11 @@ import axios from 'axios'
 type Props = {
   currentFile: string | null
   onChange: (filename: string) => void
+  // When this value changes, the component will refetch the file list.
+  refreshKey?: number | string
 }
 
-export default function FilePicker({ currentFile, onChange }: Props) {
+export default function FilePicker({ currentFile, onChange, refreshKey }: Props) {
   const [files, setFiles] = React.useState<string[]>([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -28,7 +30,8 @@ export default function FilePicker({ currentFile, onChange }: Props) {
 
   React.useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>

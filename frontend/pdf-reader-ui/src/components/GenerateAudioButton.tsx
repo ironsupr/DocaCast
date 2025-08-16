@@ -3,46 +3,100 @@ import axios from 'axios'
 
 type Props = {
   getContext: () => Promise<{ text?: string; filename?: string; page_number?: number }>
+  onGenerated?: (data: { url: string; parts?: string[]; chapters?: any[] }) => void
 }
 
-export default function GenerateAudioButton({ getContext }: Props) {
+export default function GenerateAudioButton({ getContext, onGenerated }: Props) {
   const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const audioRef = React.useRef<HTMLAudioElement | null>(null)
+  const [mode, setMode] = React.useState<'single' | 'two'>('two')
 
   const onClick = async () => {
-    setError(null)
     setLoading(true)
     try {
       const payload = await getContext()
-      const api = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')
-      const res = await axios.post(`${api}/generate-audio`, payload)
-      const relUrl: string = res.data?.url
-      if (!relUrl) throw new Error('No audio URL returned')
-      const full = `${api}${relUrl}`
-      if (audioRef.current) {
-        audioRef.current.src = full
-        await audioRef.current.play()
+      
+      // Configure based on selected mode
+      const requestPayload = {
+        ...payload,
+        podcast: mode === 'two',
+        two_speakers: mode === 'two',
+        expressiveness: mode === 'two' ? 'high' : 'medium',
+        speakers: mode === 'two' ? {
+          "Alex": "en_UK-jenny-medium",
+          "Jordan": "en_US-danny-low"
+        } : undefined
       }
+      
+      const api = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')
+      const res = await axios.post(`${api}/generate-audio`, requestPayload)
+      const relUrl: string = res.data?.url
+      const parts: string[] | undefined = res.data?.parts
+      const ch: any[] | undefined = res.data?.chapters
+      
+      if (!relUrl) throw new Error('No audio URL returned')
+      
+      const full = relUrl.startsWith('http') ? relUrl : `${api}${relUrl}`
+      
+      // Build absolute URLs for parts if provided
+      const absoluteParts = Array.isArray(parts) && parts.length > 0 
+        ? parts.map(p => (p.startsWith('http') ? p : `${api}${p}`))
+        : undefined
+
+      // Notify parent component with generated data
+      onGenerated?.({ 
+        url: full, 
+        parts: absoluteParts, 
+        chapters: Array.isArray(ch) ? ch : undefined 
+      })
+      
     } catch (e: any) {
-      setError(e?.response?.data?.detail || e?.message || 'Failed to generate audio')
+      console.error('Audio generation failed:', e)
+      // Could show a toast notification here instead
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <select
+        value={mode}
+        onChange={(e) => setMode(e.target.value as 'single' | 'two')}
+        style={{
+          padding: '6px 8px',
+          borderRadius: 6,
+          border: '1px solid #d1d5db',
+          background: '#fff',
+          fontSize: 11,
+          fontWeight: 500,
+          color: '#374151'
+        }}
+      >
+        <option value="single">👤 Single</option>
+        <option value="two">👥 Two Speakers</option>
+      </select>
+      
       <button
         onClick={onClick}
         disabled={loading}
-        title="Generate and play narration"
-        style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}
+        title={mode === 'single' ? 'Generate single narrator' : 'Generate podcast with Alex & Jordan'}
+        style={{ 
+          padding: '8px 12px', 
+          borderRadius: 8, 
+          border: '1px solid #3b82f6', 
+          background: loading ? '#f3f4f6' : '#3b82f6', 
+          color: loading ? '#6b7280' : '#fff',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          fontWeight: 600,
+          fontSize: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)'
+        }}
       >
-        {loading ? 'Generating…' : '🎙️ Narrate'}
+        {loading ? '⏳ Generating...' : '🎙️ Narrate'}
       </button>
-      <audio ref={audioRef} controls style={{ display: 'none' }} />
-      {error && <span style={{ color: '#b91c1c' }}>{error}</span>}
     </div>
   )
 }

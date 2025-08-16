@@ -20,6 +20,8 @@ import asyncio
 import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlencode
+import re
 import numpy as np  # type: ignore
 from fastapi import HTTPException
 from dotenv import load_dotenv
@@ -32,10 +34,19 @@ try:
 except ImportError:  # pragma: no cover
     pyttsx3 = None  # type: ignore
 try:
+    import edge_tts  # type: ignore
+except ImportError:  # pragma: no cover
+    edge_tts = None  # type: ignore
+try:
+    # Google Cloud Text-to-Speech
+    from google.cloud import texttospeech as google_tts  # type: ignore
+    import google.oauth2.service_account as gsa  # type: ignore
+except Exception:  # pragma: no cover
+    google_tts = None  # type: ignore
+try:
     import requests  # type: ignore
 except ImportError:  # pragma: no cover
     requests = None  # type: ignore
-# Load environment variables from backend/.env reliably regardless of cwd
 _ENV_PATH = (Path(__file__).resolve().parent / ".env")
 if _ENV_PATH.is_file():
     load_dotenv(dotenv_path=str(_ENV_PATH))
@@ -47,6 +58,14 @@ app = FastAPI(title="Adobe Hackathon Finale API")
 
 # Global in-memory vector store for this app instance
 store = VectorStore()
+
+# Insights behavior defaults via environment
+INSIGHTS_DEFAULT = (os.getenv("INSIGHTS_DEFAULT", "cross") or "cross").lower()
+try:
+    CROSS_INSIGHTS_MAX_PER_DOC = int(os.getenv("CROSS_INSIGHTS_MAX_PER_DOC", "6"))
+except Exception:
+    CROSS_INSIGHTS_MAX_PER_DOC = 6
+CROSS_INSIGHTS_DEEP = (os.getenv("CROSS_INSIGHTS_DEEP", "true") or "true").strip().lower() == "true"
 
 # ---------------------------------------------------------------------------
 # Performance / caching infrastructure
@@ -65,9 +84,26 @@ _bg_executor = ThreadPoolExecutor(max_workers=int(os.getenv("BG_WORKERS", "4")))
 def _hash_short(value: str) -> str:
     return hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
 
+
+def _synthesize_with_fallback(text: str, base: str, voice: Optional[str], accent: Optional[str], style: Optional[str]) -> Tuple[str, str]:
+    """Try multiple TTS providers (edge_tts -> hf_dia -> pyttsx3) and return first success."""
+    # Try Edge first
+    try:
+        return _synthesize_speech(text, voice=voice, accent=accent, style=style, deterministic_basename=base, provider_override="edge_tts")
+    except Exception:
+        pass
+    # Then HF Dia if configured
+    try:
+        return _synthesize_speech(text, voice=voice, accent=accent, style=style, deterministic_basename=base, provider_override="hf_dia")
+    except Exception:
+        pass
+    # Finally pyttsx3 offline
+    return _synthesize_speech(text, voice=voice, accent=accent, style=style, deterministic_basename=base, provider_override="pyttsx3")
+
 # Cross-document analysis caches
 _doc_claims_cache: Dict[str, List[Dict[str, Any]] ] = {}
 _cross_insights_cache: Dict[str, Dict[str, Any]] = {}
+_web_cache: Dict[str, List[Dict[str, Any]]] = {}
 
 def _file_signature(filename: str) -> str:
     """Return a short signature for a file based on mtime and size for cache invalidation."""
@@ -181,6 +217,54 @@ def health_check():
     return {"status": "ok"}
 
 
+@app.get("/diagnostics")
+def diagnostics():
+    """Basic diagnostics for TTS provider configuration and audio tools."""
+    provider = (os.getenv("TTS_PROVIDER") or "auto").lower().strip() or "auto"
+    info: Dict[str, Any] = {"provider": provider, "ffmpeg": False, "ffprobe": False}
+    # Check ffmpeg / ffprobe
+    try:
+        import subprocess
+        r = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
+        info["ffmpeg"] = (r.returncode == 0)
+    except Exception:
+        info["ffmpeg"] = False
+    try:
+        import subprocess
+        r = subprocess.run(["ffprobe", "-version"], capture_output=True, text=True, timeout=5)
+        info["ffprobe"] = (r.returncode == 0)
+    except Exception:
+        info["ffprobe"] = False
+
+    # Provider-specific checks
+    if provider == "google":
+        info["google_tts"] = {"installed": google_tts is not None}
+        if google_tts is not None:
+            creds_json = os.getenv("GOOGLE_TTS_SERVICE_ACCOUNT_JSON", "").strip()
+            try:
+                if creds_json:
+                    credentials = gsa.Credentials.from_service_account_info(json.loads(creds_json))
+                    client = google_tts.TextToSpeechClient(credentials=credentials)
+                else:
+                    client = google_tts.TextToSpeechClient()
+                voices = client.list_voices().voices or []
+                info["google_tts"].update({
+                    "auth": True,
+                    "voices_count": len(voices)
+                })
+            except Exception as e:
+                info["google_tts"].update({
+                    "auth": False,
+                    "error": str(e)[:300]
+                })
+    elif provider == "hf_dia":
+        info["hf_dia"] = {"token": bool(os.getenv("HUGGINGFACE_API_TOKEN"))}
+    else:
+        info["pyttsx3"] = {"available": pyttsx3 is not None}
+
+    return info
+
+
 @app.get("/documents")
 def list_documents():
     """List uploaded PDF filenames in the document library."""
@@ -229,17 +313,74 @@ async def recommendations(req: RecommendationRequest):
     # Embed and search
     model = _get_embedder()
     q_emb = model.encode([query_text], convert_to_numpy=True, normalize_embeddings=True)[0]
-    results = store.search(q_emb, k=req.k, fetch_k=req.fetch_k)
+    # Expand initial pool to ensure we can dedupe and find distinct sections
+    fetch_k = req.fetch_k if req.fetch_k is not None else max(req.k * 3, req.k + 10)
+    results = store.search(q_emb, k=req.k, fetch_k=fetch_k)
+
+    # Helper: produce a 2–4 sentence extract from the best available source text
+    def _snippet_2to4_sentences(source_text: str, meta: Dict[str, Any], query: str) -> str:
+        def split_sentences(t: str) -> List[str]:
+            t = re.sub(r"\s+", " ", t or "").strip()
+            if not t:
+                return []
+            parts = re.split(r"(?<=[.!?])\s+", t)
+            # Trim and drop empties
+            return [p.strip() for p in parts if p and len(p.strip()) > 0]
+
+        # Prefer section text if available; otherwise use page text
+        text = source_text or ""
+        if not text:
+            fname = meta.get("filename")
+            pnum = meta.get("page_number")
+            if fname and pnum:
+                try:
+                    text = _extract_page_text(str((_docs_dir / fname).absolute()), int(pnum))
+                except Exception:
+                    text = ""
+        sents = split_sentences(text)
+        if not sents:
+            return ""
+        if len(sents) <= 4:
+            return " ".join(sents)
+
+        # Score sentences by query term overlap
+        tokens = [w.lower() for w in re.findall(r"[A-Za-z0-9]+", query or "") if len(w) >= 3]
+        uniq = list(dict.fromkeys(tokens))[:12]
+        scores = []
+        for i, sent in enumerate(sents):
+            l = sent.lower()
+            score = sum(1 for w in uniq if w in l)
+            scores.append((score, i))
+        # Choose best 3-sentence window; allow 2 or 4 if at edges or ties
+        best = (-(10**9), 0, 3)  # (score, start, window)
+        n = len(sents)
+        for win in (3, 4, 2):
+            for start in range(0, n - win + 1):
+                sc = sum(scores[i][0] for i in range(start, start + win))
+                cand = (sc, start, win)
+                if cand > best:
+                    best = cand
+        _, start, win = best
+        pick = sents[start:start+win]
+        prefix = "… " if start > 0 else ""
+        suffix = " …" if start + win < n else ""
+        snippet = prefix + " ".join(pick) + suffix
+        # Guardrail: keep under ~600 chars
+        if len(snippet) > 600:
+            snippet = snippet[:600].rsplit(" ", 1)[0] + " …"
+        return snippet
 
     # De-dup and optional filtering
-    seen: Set[Tuple[Optional[str], Optional[int]]] = set()
+    # De-dup by section when available (filename + section_index), else by page
+    seen: Set[Tuple[Optional[str], Optional[int], Optional[int]]] = set()
     shaped = []
     best_self = None  # hold best result from the same page if we end up empty
     for r in results:
         md = r.get("metadata", {})
         fname = md.get("filename")
         pnum = md.get("page_number")
-        key = (fname, pnum)
+        sec_idx = md.get("section_index")
+        key = (fname, sec_idx, pnum)
         if key in seen:
             continue
         if req.exclude_self and req.filename and fname == req.filename and req.page_number and pnum == req.page_number:
@@ -251,10 +392,14 @@ async def recommendations(req: RecommendationRequest):
         if req.min_score is not None and score is not None and score < req.min_score:
             continue
         seen.add(key)
+        source_text = r.get("text", "")
+        cleaned = _snippet_2to4_sentences(source_text, md, query_text or "")
         shaped.append({
-            "snippet": r.get("text", ""),
+            "snippet": cleaned,
             "filename": fname,
             "page_number": pnum,
+            "section_title": md.get("section_title"),
+            "section_index": md.get("section_index"),
             "distance": r.get("distance"),
             "score": score,
         })
@@ -278,6 +423,28 @@ class InsightsRequest(BaseModel):
     filename: Optional[str] = None
     page_number: Optional[int] = None
     k: int = 5  # retrieval size for context/citations
+    web: Optional[bool] = False  # if true, augment with web research
+    web_k: int = 3  # number of web sources when web=True
+
+
+def _extract_entire_pdf_text(file_path: str) -> str:
+    """Extract text from entire PDF for podcast generation."""
+    if not Path(file_path).is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        doc = fitz.open(file_path)
+        try:
+            full_text = ""
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                page_text = page.get_text("text") or ""
+                if page_text.strip():
+                    full_text += f"\n\nPage {page_num + 1}:\n{page_text}"
+            return full_text
+        finally:
+            doc.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read PDF: {e}")
 
 
 def _extract_page_text(file_path: str, page_number: int) -> str:
@@ -301,7 +468,7 @@ def _extract_page_text(file_path: str, page_number: int) -> str:
         raise HTTPException(status_code=500, detail=f"Failed to read PDF: {e}")
 
 
-def _gemini_insights(text: str, citations: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def _gemini_insights(text: str, citations: Optional[List[Dict[str, Any]]] = None, web_results: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     if genai is None:
         raise HTTPException(status_code=500, detail="google-generativeai not installed on server")
     api_key = os.getenv("GOOGLE_API_KEY")
@@ -318,38 +485,127 @@ def _gemini_insights(text: str, citations: Optional[List[Dict[str, Any]]] = None
         f"[CITATION {i+1}] file={c.get('filename')} page={c.get('page_number')}: {c.get('snippet')}"
         for i, c in enumerate(citations or [])
     ])
+    web_str = "\n".join([
+        f"[WEB {i+1}] title={w.get('title','')} url={w.get('url','')}: {w.get('snippet','')}"
+        for i, w in enumerate(web_results or [])
+    ])
     prompt = f"""
 You are an assistant extracting structured insights from a document passage and optional retrieved references.
-Return JSON with exactly these keys:
-- "summary": short paragraph summarizing the context (60-120 words).
-- "insights": array of 3-7 concise key takeaways.
-- "facts": array of factual statements supported by the text.
-- "contradictions": array of potential inconsistencies or conflicts (empty if none).
+Return a single JSON object with EXACTLY these keys (no extra keys):
+- "key_insights": array of 3-7 concise takeaways (short, actionable).
+- "did_you_know_facts": array of factual nuggets supported by the text.
+- "counterpoints": array of potential caveats, risks, or alternative views (empty if none).
+- "inspirations": array of ideas, applications, or next steps the reader could try.
+- "examples": array of 3-6 illustrative examples that clarify the content; each example should be 1-3 sentences.
 
 Primary Context:
 {text}
 
 Retrieved References (optional):
 {cites_str or 'None'}
+
+External Web Context (optional):
+{web_str or 'None'}
 """
     try:
         resp = model.generate_content(prompt)
         raw = (getattr(resp, "text", None) or "").strip()
         # In JSON mode, raw should be JSON; still guard parsing
         data = json.loads(raw) if raw else {}
+        if not isinstance(data, dict):
+            data = {}
         return {
-            "summary": data.get("summary", "") if isinstance(data, dict) else "",
-            "insights": data.get("insights", []) if isinstance(data, dict) else [],
-            "facts": data.get("facts", []) if isinstance(data, dict) else [],
-            "contradictions": data.get("contradictions", []) if isinstance(data, dict) else [],
+            "key_insights": data.get("key_insights", []),
+            "did_you_know_facts": data.get("did_you_know_facts", []),
+            "counterpoints": data.get("counterpoints", []),
+            "inspirations": data.get("inspirations", []),
+            "examples": data.get("examples", []),
         }
     except Exception:  # pragma: no cover
-        return {"summary": "", "insights": [], "facts": [], "contradictions": []}
+        return {"key_insights": [], "did_you_know_facts": [], "counterpoints": [], "inspirations": [], "examples": []}
+
+
+def _web_search(query: str, k: int = 3) -> List[Dict[str, Any]]:
+    """Perform a lightweight web search using Tavily or Bing (if API keys provided).
+    Returns a list of dicts: { title, url, snippet }
+    """
+    results: List[Dict[str, Any]] = []
+    q = (query or "").strip()
+    if not q or requests is None:
+        return results
+    # Cache by query+k
+    key = f"{_hash_short(q)}|{k}"
+    cached = _web_cache.get(key)
+    if cached is not None:
+        return cached
+
+    # Try Tavily first
+    tav_key = os.getenv("TAVILY_API_KEY", "").strip()
+    if tav_key:
+        try:
+            resp = requests.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": tav_key,
+                    "query": q,
+                    "search_depth": "basic",
+                    "include_answer": False,
+                    "max_results": max(1, min(10, k)),
+                },
+                timeout=20,
+            )
+            if resp.ok:
+                data = resp.json()
+                for item in data.get("results", [])[:k]:
+                    results.append({
+                        "title": item.get("title", ""),
+                        "url": item.get("url", ""),
+                        "snippet": item.get("content", "")[:500],
+                    })
+        except Exception:
+            results = []
+
+    # Fallback to Bing Web Search API
+    if not results:
+        bing_key = os.getenv("BING_SEARCH_API_KEY", "").strip()
+        if bing_key:
+            try:
+                params = {"q": q, "count": max(1, min(10, k))}
+                headers = {"Ocp-Apim-Subscription-Key": bing_key}
+                url = f"https://api.bing.microsoft.com/v7.0/search?{urlencode(params)}"
+                resp = requests.get(url, headers=headers, timeout=20)
+                if resp.ok:
+                    data = resp.json()
+                    for item in (data.get("webPages", {}).get("value", []) or [])[:k]:
+                        results.append({
+                            "title": item.get("name", ""),
+                            "url": item.get("url", ""),
+                            "snippet": item.get("snippet", "")[:500],
+                        })
+            except Exception:
+                results = []
+
+    _web_cache[key] = results
+    return results
 
 
 @app.post("/insights")
 async def insights(req: InsightsRequest):
-    """Generate insights using Gemini from provided text or a specific page of an uploaded PDF."""
+    """Generate insights using Gemini from provided text or a specific page of an uploaded PDF.
+    If INSIGHTS_DEFAULT=cross and no explicit text/filename provided, delegate to cross-insights across all PDFs.
+    """
+    # Default to cross-doc when configured and no specific input
+    if INSIGHTS_DEFAULT == "cross" and not (req.text and req.text.strip()) and not req.filename:
+        cross_req = CrossInsightsRequest(
+            filenames=None,
+            max_per_doc=max(2, CROSS_INSIGHTS_MAX_PER_DOC),
+            deep=bool(CROSS_INSIGHTS_DEEP),
+            force=False,
+            include_claims=False,
+            focus=None,
+        )
+        return await cross_insights(cross_req)
+
     text = (req.text or "").strip()
     if not text:
         if not (req.filename and req.page_number):
@@ -383,13 +639,25 @@ async def insights(req: InsightsRequest):
     except Exception:
         citations = []
 
-    result = _gemini_insights(text, citations)
+    # Optional: web augmentation
+    web_results: List[Dict[str, Any]] = []
+    if req.web:
+        # Keep query compact to reduce search noise
+        q = (text[:300] + ("…" if len(text) > 300 else "")).strip()
+        try:
+            web_results = _web_search(q, k=max(1, min(5, req.web_k)))
+        except Exception:
+            web_results = []
+
+    result = _gemini_insights(text, citations, web_results)
     return {
-        "summary": result.get("summary", ""),
-        "insights": result.get("insights", []),
-        "facts": result.get("facts", []),
-        "contradictions": result.get("contradictions", []),
+        "key_insights": result.get("key_insights", []),
+        "did_you_know_facts": result.get("did_you_know_facts", []),
+        "counterpoints": result.get("counterpoints", []),
+        "inspirations": result.get("inspirations", []),
+        "examples": result.get("examples", []),
         "citations": citations,
+        "web": web_results,
     }
 
 
@@ -398,6 +666,8 @@ class CrossInsightsRequest(BaseModel):
     max_per_doc: int = 6  # max claims/snippets per document
     deep: Optional[bool] = False  # if true, use LLM to extract claims; else use fast snippet fallback
     force: Optional[bool] = False  # bypass caches when true
+    focus: Optional[str] = None  # optional topic/focus to steer comparison
+    include_claims: Optional[bool] = False  # include per-doc extracted claims in response (debugging)
 
 
 def _select_diverse_pages(page_texts: Dict[int, str], k: int) -> List[int]:
@@ -544,7 +814,7 @@ Sections:
     return claims
 
 
-def _gemini_cross_compare(doc_claims: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _gemini_cross_compare(doc_claims: List[Dict[str, Any]], focus: Optional[str] = None) -> Dict[str, Any]:
     """Use Gemini to compare claims across documents, returning agreements and contradictions with references."""
     if genai is None:
         return {"agreements": [], "contradictions": [], "notes": []}
@@ -576,16 +846,23 @@ def _gemini_cross_compare(doc_claims: List[Dict[str, Any]]) -> Dict[str, Any]:
     refs_block = "\n\n".join(refs)
 
     prompt = f"""
-You are comparing evidence across multiple PDFs. Read the references and identify:
+You are comparing evidence across multiple PDFs. Read the references and identify (for the topic below if provided).
 - Agreements: statements that are supported by two or more sources (list each statement once).
 - Contradictions: statements that are in tension or conflict between sources.
 
-For each item, return JSON with these fields:
-    statement: concise sentence.
-    support: array of references like {{file, page_number}} that support it.
-    quotes: array of 1-3 short quotes (<=120 chars) from those references.
+Return a single JSON object with these top-level keys ONLY:
+- "agreements": array of items
+- "contradictions": array of items
+- "notes": optional array (can be empty)
 
-If no clear items exist, return empty arrays.
+Each item in agreements/contradictions MUST have:
+- "statement": concise sentence.
+- "support": array of objects like {"file": string, "page_number": number}
+- "quotes": array of 1-3 short quotes (<=120 chars) drawn from the supporting refs.
+
+If no clear items exist, return empty arrays for "agreements" and "contradictions".
+
+Topic (optional): {focus or 'None'}
 
 References:
 
@@ -652,13 +929,36 @@ async def cross_insights(req: CrossInsightsRequest):
     if not all_claims:
         return {"agreements": [], "contradictions": [], "notes": []}
 
-    cross_key = _hash_short("|".join(cache_key_parts) + f"|m{req.max_per_doc}")
+    cross_key = _hash_short("|".join(cache_key_parts) + f"|m{req.max_per_doc}|deep{1 if req.deep else 0}|focus{(req.focus or '').strip().lower()}")
     cached = _cross_insights_cache.get(cross_key)
     if (not req.force) and (cached is not None):
         return cached
 
-    result = _gemini_cross_compare(all_claims)
+    result = _gemini_cross_compare(all_claims, focus=req.focus)
+    # Heuristic retry: if both arrays empty but we have many claims, try once more with a narrowed focus built from frequent terms
+    if not result.get("agreements") and not result.get("contradictions") and len(all_claims) >= 4:
+        try:
+            # Build a crude focus from top words across claims/snippets
+            text_blobs = []
+            for c in all_claims[:10]:
+                if c.get("statement"):
+                    text_blobs.append(str(c.get("statement")))
+                elif c.get("snippet"):
+                    text_blobs.append(str(c.get("snippet"))[:200])
+            blob = " ".join(text_blobs)
+            # pick a few frequent keywords (letters only)
+            words = re.findall(r"[A-Za-z]{5,}", blob.lower())
+            from collections import Counter
+            top = [w for w, _ in Counter(words).most_common(5)]
+            alt_focus = " ".join(top[:3]) if top else None
+            if alt_focus:
+                result = _gemini_cross_compare(all_claims, focus=alt_focus)
+        except Exception:
+            pass
+    # Cache and respond (optionally include claims for debugging)
     _cross_insights_cache[cross_key] = result
+    if req.include_claims:
+        return {**result, "claims": all_claims}
     return result
 
 
@@ -672,12 +972,16 @@ class GenerateAudioRequest(BaseModel):
     accent: Optional[str] = None  # e.g. en-US, en-GB, en-IN, es-ES
     style: Optional[str] = None   # e.g. "female", "male", or custom speaker id
     expressiveness: Optional[str] = None  # e.g. "high", "medium", "low"
+    speakers: Optional[Dict[str, str]] = None  # optional mapping: {"A": "voiceA", "B": "voiceB"}
+    entire_pdf: Optional[bool] = False  # if true, generate podcast for entire PDF
+    two_speakers: Optional[bool] = None  # explicit control for two-speaker mode
 
 
-def _gemini_script(text: str, podcast: bool = False, accent: Optional[str] = None, style: Optional[str] = None, expressiveness: Optional[str] = None) -> str:
-    """Use Gemini to convert raw context into a narration script.
+def _gemini_script(text: str, podcast: bool = False, accent: Optional[str] = None, style: Optional[str] = None, expressiveness: Optional[str] = None, two_speakers: bool = False) -> str:
+    """Use Gemini to convert raw context into a narration or dialogue script.
     When podcast=True or expressiveness is specified, produce a warmer, more natural script.
     Accent/style hints are woven subtly (no phonetic spellings) to encourage region-appropriate phrasing.
+    If two_speakers=True, produce alternating lines for "Speaker A" and "Speaker B".
     """
     if genai is None:
         return text[:1500]
@@ -697,7 +1001,30 @@ def _gemini_script(text: str, podcast: bool = False, accent: Optional[str] = Non
     expr_level = (expressiveness or ("high" if podcast else "medium"))
     expr_hint = f" Target expressiveness: {expr_level}." if expr_level else ""
 
-    if podcast or expressiveness:
+    if two_speakers:
+        prompt = f"""
+You are an expert podcast writer creating engaging conversational content. Convert the following into a natural, lively dialogue between two knowledgeable hosts named "Alex" and "Jordan".
+
+Guidelines for natural podcast dialogue:
+- Alex tends to be more analytical and asks probing questions
+- Jordan is more enthusiastic and provides vivid explanations and examples
+- Create natural back-and-forth with interruptions, reactions, and building on each other's points
+- Include conversational elements like "Oh, that's fascinating!", "Wait, so you're saying...", "Exactly! And here's another thing..."
+- Vary sentence lengths naturally - some short reactions, some longer explanations
+- Target 3-5 minutes of engaging conversation
+- Stay grounded in the provided content - don't invent facts
+- Format as:
+Alex: [their dialogue]
+Jordan: [their response]
+Alex: [continuation]
+(etc.)
+
+{accent_hint}{style_hint}{expr_hint}
+
+Content to discuss:
+{text}
+"""
+    elif podcast or expressiveness:
         prompt = f"""
 You are a professional podcast narrator. Rewrite the following content as a warm, highly natural spoken narration.
 Guidelines:
@@ -727,17 +1054,89 @@ Content:
         return text[:1500]
 
 
-def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str] = None, accent: Optional[str] = None, style: Optional[str] = None, deterministic_basename: Optional[str] = None) -> Tuple[str, str]:
+def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str] = None, accent: Optional[str] = None, style: Optional[str] = None, deterministic_basename: Optional[str] = None, provider_override: Optional[str] = None) -> Tuple[str, str]:
     """Synthesize speech from text into a file using the selected provider.
-    Preference: Hugging Face (Dia-1.6B) when token is available; otherwise offline pyttsx3.
-    You can force provider via env TTS_PROVIDER: 'hf_dia' or 'pyttsx3'.
+    Preference: Edge-TTS for natural voices, then Hugging Face (Dia-1.6B), then offline pyttsx3.
+    You can force provider via env TTS_PROVIDER: 'edge_tts', 'hf_dia' or 'pyttsx3'.
     Returns (filename, public_relative_url).
     """
-    provider = (os.getenv("TTS_PROVIDER") or "").lower().strip()
+    provider = (provider_override or os.getenv("TTS_PROVIDER") or "").lower().strip()
     hf_token = os.getenv("HUGGINGFACE_API_TOKEN")
     hf_model = os.getenv("HF_DIA_MODEL", "nari-labs/Dia-1.6B")
 
-    # Decide provider: default to HF if token exists and not explicitly forcing pyttsx3
+    # If Google TTS selected, use that
+    if provider == "google":
+        if google_tts is None:
+            raise HTTPException(status_code=500, detail="google-cloud-texttospeech not installed on server")
+        # Auth: prefer explicit JSON in env, else default credentials (file path handled by library via GOOGLE_APPLICATION_CREDENTIALS)
+        creds_json = os.getenv("GOOGLE_TTS_SERVICE_ACCOUNT_JSON", "").strip()
+        try:
+            if creds_json:
+                credentials = gsa.Credentials.from_service_account_info(json.loads(creds_json))
+                client = google_tts.TextToSpeechClient(credentials=credentials)
+            else:
+                client = google_tts.TextToSpeechClient()
+        except Exception as e:  # pragma: no cover
+            raise HTTPException(status_code=500, detail=f"Google TTS auth failed: {e}")
+
+        # Voice: accept explicit voice name from 'voice' or 'style'; else default by accent/locale
+        voice_name = (voice or style or os.getenv("GOOGLE_TTS_VOICE_A") or "en-US-Neural2-C").strip()
+        language_code = (accent or "en-US")
+        if voice_name and "-" in voice_name:
+            # derive language from voice eg en-US-Neural2-C -> en-US
+            try:
+                parts = voice_name.split("-")[:2]
+                language_code = f"{parts[0]}-{parts[1]}"
+            except Exception:
+                pass
+
+        synthesis_input = google_tts.SynthesisInput(text=text)
+        voice_params = google_tts.VoiceSelectionParams(
+            language_code=language_code,
+            name=voice_name
+        )
+        audio_encoding = (os.getenv("GOOGLE_TTS_AUDIO_ENCODING") or "MP3").upper()
+        if audio_encoding not in ("MP3", "LINEAR16", "OGG_OPUS"):
+            audio_encoding = "MP3"
+        audio_config = google_tts.AudioConfig(audio_encoding=getattr(google_tts.AudioEncoding, audio_encoding))
+
+        try:
+            response = client.synthesize_speech(input=synthesis_input, voice=voice_params, audio_config=audio_config)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Google TTS synth failed: {e}")
+
+        ext = "mp3" if audio_encoding == "MP3" else ("wav" if audio_encoding == "LINEAR16" else "ogg")
+        base = f"{deterministic_basename}.{ext}" if deterministic_basename else f"tts_{uuid.uuid4().hex[:8]}.{ext}"
+        out_path = _audio_dir / base
+        try:
+            out_path.write_bytes(response.audio_content)
+        except Exception as e:  # pragma: no cover
+            raise HTTPException(status_code=500, detail=f"Failed to write audio: {e}")
+        return base, f"/audio/{base}"
+
+    # Edge TTS (free, natural voices)
+    if provider == "edge_tts":
+        if edge_tts is None:
+            raise HTTPException(status_code=500, detail="edge-tts not installed on server")
+        voice_name = (voice or style or os.getenv("EDGE_TTS_VOICE_DEFAULT") or "en-US-AriaNeural")
+        base = f"{deterministic_basename}.mp3" if deterministic_basename else f"tts_{uuid.uuid4().hex[:8]}.mp3"
+        out_path = _audio_dir / base
+
+        async def _edge_synth():
+            communicate = edge_tts.Communicate(text=text, voice=voice_name)
+            with open(out_path, "wb") as f:
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        f.write(chunk["data"])
+
+        try:
+            # Run a fresh event loop in this worker thread
+            asyncio.run(_edge_synth())
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Edge TTS synth failed: {e}")
+        return base, f"/audio/{base}"
+
+    # Decide provider: HF > pyttsx3 (skip Edge-TTS for now to avoid asyncio conflicts)
     use_hf = (provider == "hf_dia") or (provider == "" and bool(hf_token))
 
     # Hugging Face Dia-1.6B via Inference API (mp3)
@@ -794,7 +1193,7 @@ def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str
 
     # Offline provider: pyttsx3 (WAV)
     if pyttsx3 is None:
-        raise HTTPException(status_code=500, detail="pyttsx3 not installed on server; install pyttsx3 or configure HUGGINGFACE_API_TOKEN")
+        raise HTTPException(status_code=500, detail="No TTS providers available. Install edge-tts, configure HUGGINGFACE_API_TOKEN, or install pyttsx3")
     ext = "wav"
     voice_name = voice or os.getenv("PYTTSX3_VOICE") or ""
     if deterministic_basename:
@@ -823,28 +1222,42 @@ def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str
 @app.post("/generate-audio")
 async def generate_audio(req: GenerateAudioRequest):
     """Generate (and cache) TTS audio from provided text or a specific page.
+    Supports entire PDF podcast generation with natural two-speaker dialogue.
     Optimizations:
     - Script caching: repeated requests for same content + parameters reuse Gemini output.
     - Audio caching: identical script + voice/style/accent/provider returns existing file.
     - Offloaded synthesis to thread pool to avoid blocking event loop.
     """
     text = (req.text or "").strip()
-    if not text:
+    
+    # Handle entire PDF processing
+    if req.entire_pdf and req.filename:
+        file_path = str((_docs_dir / req.filename).absolute())
+        text = _extract_entire_pdf_text(file_path).strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="No extractable text from PDF")
+    elif not text:
         if not (req.filename and req.page_number):
-            raise HTTPException(status_code=400, detail="Provide text, or filename + page_number")
+            raise HTTPException(status_code=400, detail="Provide text, filename + page_number, or filename + entire_pdf=true")
         file_path = str((_docs_dir / req.filename).absolute())
         text = _extract_page_text(file_path, req.page_number).strip()
         if not text:
             raise HTTPException(status_code=400, detail="No extractable text for the given page")
 
+    # Determine if two-speaker mode should be used
+    two_speakers = req.two_speakers if req.two_speakers is not None else bool(req.podcast)
+    
     # --- Script caching ---
     script_key = "|".join([
-        _hash_short(text),
+        _hash_short(text[:1000]),  # Use first 1000 chars for key to handle long texts
         f"p{1 if req.podcast else 0}",
+        f"ts{1 if two_speakers else 0}",
+        f"ep{1 if req.entire_pdf else 0}",
         req.accent or "-",
         req.style or "-",
         req.expressiveness or "-",
     ])
+    
     script = _script_cache.get(script_key)
     if script is None:
         script = _gemini_script(
@@ -853,6 +1266,7 @@ async def generate_audio(req: GenerateAudioRequest):
             accent=req.accent,
             style=req.style,
             expressiveness=req.expressiveness,
+            two_speakers=two_speakers,
         )
         _script_cache[script_key] = script
 
@@ -865,6 +1279,7 @@ async def generate_audio(req: GenerateAudioRequest):
         provider,
         (req.accent or "na").replace('-', ''),
         (req.style or "na"),
+        f"ts{1 if two_speakers else 0}",
     ])
 
     audio_key = "|".join([
@@ -883,25 +1298,232 @@ async def generate_audio(req: GenerateAudioRequest):
             return {"url": rel_url, "cached": True}
 
     loop = asyncio.get_running_loop()
-    try:
-        filename, rel_url = await loop.run_in_executor(
-            _tts_executor,
-            lambda: _synthesize_speech(
-                script,
-                voice=req.voice,
-                fmt=req.format,
-                accent=req.accent,
-                style=req.style,
-                deterministic_basename=deterministic_base,
-            ),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {e}")
+    # If not podcast/two-speaker, synthesize as single take
+    if not two_speakers:
+        try:
+            filename, rel_url = await loop.run_in_executor(
+                _tts_executor,
+                lambda: _synthesize_with_fallback(
+                    script,
+                    deterministic_base,
+                    req.voice,
+                    req.accent,
+                    req.style,
+                ),
+            )
+        except HTTPException:
+            raise
+        except Exception as e:  # pragma: no cover
+            raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {e}")
 
-    _audio_cache[audio_key] = (filename, rel_url)
-    return {"url": rel_url, "cached": False}
+        _audio_cache[audio_key] = (filename, rel_url)
+        return {"url": rel_url, "cached": False}
+
+    # --- Two-speaker podcast flow ---
+    # Parse the dialogue into (speaker, line) pairs - support both Alex/Jordan and Speaker A/B formats
+    lines: List[Tuple[str, str]] = []
+    for raw_line in (script or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        # Support multiple formats: "Alex:", "Jordan:", "Speaker A:", "A:", "B:"
+        m = re.match(r"^((Alex|Jordan)|Speaker\s+[AB]|[AB]):\s*(.+)$", line, flags=re.IGNORECASE)
+        if not m:
+            continue
+        label = m.group(1).strip()
+        content = m.group(3).strip()
+        # Normalize labels
+        if re.fullmatch(r"[Aa]", label):
+            spk = "Speaker A"
+        elif re.fullmatch(r"[Bb]", label):
+            spk = "Speaker B"
+        else:
+            spk = label.title()
+        lines.append((spk, content))
+        
+    if not lines:
+        # Fallback to single speaker if parsing failed
+        try:
+            filename, rel_url = await loop.run_in_executor(
+                _tts_executor,
+                lambda: _synthesize_speech(
+                    script,
+                    voice=req.voice,
+                    fmt=req.format,
+                    accent=req.accent,
+                    style=req.style,
+                    deterministic_basename=deterministic_base,
+                ),
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {e}")
+        _audio_cache[audio_key] = (filename, rel_url)
+        return {"url": rel_url, "cached": False}
+
+    # Enhanced voice mapping with natural-sounding defaults
+    spk_voice: Dict[str, Optional[str]] = {}
+    
+    # Set default voices for natural podcast experience
+    provider_eff = (os.getenv("TTS_PROVIDER") or "").lower().strip()
+    if provider_eff == "google":
+        # Use Google voices from env
+        vA = os.getenv("GOOGLE_TTS_VOICE_A", "en-US-Neural2-C")
+        vB = os.getenv("GOOGLE_TTS_VOICE_B", "en-GB-Neural2-B")
+        if "Alex" in [spk for spk, _ in lines]:
+            spk_voice["Alex"] = vA
+            spk_voice["Jordan"] = vB
+        else:
+            spk_voice["Speaker A"] = vA
+            spk_voice["Speaker B"] = vB
+    elif provider_eff == "edge_tts":
+        # Good free Edge voices
+        vA = os.getenv("EDGE_TTS_VOICE_A", "en-US-GuyNeural")
+        vB = os.getenv("EDGE_TTS_VOICE_B", "en-GB-SoniaNeural")
+        if "Alex" in [spk for spk, _ in lines]:
+            spk_voice["Alex"] = vA
+            spk_voice["Jordan"] = vB
+        else:
+            spk_voice["Speaker A"] = vA
+            spk_voice["Speaker B"] = vB
+    else:
+        # Local defaults (pyttsx3 / hf)
+        if "Alex" in [spk for spk, _ in lines]:
+            spk_voice["Alex"] = "en_UK-jenny-medium"  # Analytical voice
+            spk_voice["Jordan"] = "en_US-danny-low"   # Enthusiastic voice
+        else:
+            spk_voice["Speaker A"] = "en_UK-jenny-medium"
+            spk_voice["Speaker B"] = "en_US-danny-low"
+    
+    # Override with user-provided speakers if available
+    if req.speakers:
+        for speaker_key, voice_val in req.speakers.items():
+            if speaker_key in ["A", "Alex"]:
+                spk_voice["Alex"] = voice_val
+                spk_voice["Speaker A"] = voice_val
+            elif speaker_key in ["B", "Jordan"]:
+                spk_voice["Jordan"] = voice_val
+                spk_voice["Speaker B"] = voice_val
+            else:
+                spk_voice[speaker_key] = voice_val
+
+    # Generate individual clips with pauses
+    clip_files: List[Path] = []
+    clip_urls: List[str] = []
+    for idx, (spk, content) in enumerate(lines):
+        basename = f"{deterministic_base}_part{idx:03d}"
+        voice_choice = spk_voice.get(spk) or req.voice
+        # Derive accent from Google voice name if provider=google and accent not explicitly set
+        eff_accent = req.accent
+        provider_eff = (os.getenv("TTS_PROVIDER") or "").lower().strip()
+        if provider_eff == "google" and not eff_accent and isinstance(voice_choice, str) and "-" in voice_choice:
+            try:
+                parts = voice_choice.split("-")[:2]
+                eff_accent = f"{parts[0]}-{parts[1]}"
+            except Exception:
+                pass
+        try:
+            fn, url_rel = await loop.run_in_executor(
+                _tts_executor,
+                lambda: _synthesize_with_fallback(
+                    f"{content}",
+                    basename,
+                    voice_choice,
+                    eff_accent or req.accent,
+                    req.style,
+                ),
+            )
+        except Exception:
+            # Skip failed lines, continue others
+            continue
+        clip_files.append((_audio_dir / fn))
+        clip_urls.append(url_rel)
+
+    if not clip_files:
+        raise HTTPException(status_code=500, detail="No audio clips generated for podcast")
+
+    # Build chapter list with durations using ffprobe (best-effort)
+    chapters: List[Dict[str, Any]] = []
+    durations_sec: List[float] = []
+    try:
+        import subprocess
+        for i, path in enumerate(clip_files):
+            try:
+                cmd = [
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1', path.name
+                ]
+                res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(_audio_dir), timeout=10)
+                dur = float(res.stdout.strip()) if res.returncode == 0 and res.stdout.strip() else 0.0
+            except Exception:
+                dur = 0.0
+            durations_sec.append(max(0.0, dur))
+    except Exception:
+        durations_sec = [0.0 for _ in clip_files]
+    # Accumulate timestamps
+    t = 0.0
+    for i, (spk, (url_rel)) in enumerate(zip([s for s, _ in lines], clip_urls)):
+        dur = durations_sec[i] if i < len(durations_sec) else 0.0
+        start_ms = int(round(t * 1000))
+        end_ms = int(round((t + dur) * 1000))
+        chapters.append({
+            "index": i,
+            "speaker": [s for s, _ in lines][i],
+            "text": [t for _, t in lines][i],
+            "start_ms": start_ms,
+            "end_ms": end_ms,
+            "part_url": url_rel,
+        })
+        t += dur
+
+    # Concatenation using ffmpeg (re-encode to MP3 for robustness)
+    try:
+        import subprocess
+        import sys
+        
+        final_name = f"{deterministic_base}_podcast.mp3"
+        final_path = _audio_dir / final_name
+        
+        # Create a file list for ffmpeg concat
+        filelist_path = _audio_dir / f"{deterministic_base}_files.txt"
+        with open(filelist_path, 'w', encoding='utf-8') as f:
+            for clip_file in clip_files:
+                # Use relative paths to avoid issues with special characters
+                f.write(f"file '{clip_file.name}'\n")
+        
+        # Use ffmpeg to concatenate and re-encode to MP3 (handles mixed inputs)
+        ffmpeg_cmd = [
+            'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
+            '-i', str(filelist_path), '-c:a', 'libmp3lame', '-b:a', '160k', '-ar', '44100', str(final_path)
+        ]
+        
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, cwd=str(_audio_dir))
+        
+        # Clean up temp file list only (keep parts for chapter playback / fallback)
+        filelist_path.unlink(missing_ok=True)
+        
+        if result.returncode == 0 and final_path.exists():
+            final_url = f"/audio/{final_name}"
+            _audio_cache[audio_key] = (final_name, final_url)
+            return {"url": final_url, "parts": clip_urls, "chapters": chapters, "cached": False}
+        else:
+            # Fallback: return the first clip if concatenation fails
+            if clip_urls:
+                first_clip = clip_urls[0]
+                _audio_cache[audio_key] = (clip_files[0].name, first_clip)
+                return {"url": first_clip, "parts": clip_urls, "chapters": chapters, "cached": False}
+            raise HTTPException(status_code=500, detail="Audio concatenation failed")
+            
+    except FileNotFoundError:
+        # ffmpeg not available, fallback to first clip
+        if clip_urls:
+            first_clip = clip_urls[0]
+            _audio_cache[audio_key] = (clip_files[0].name, first_clip)
+            return {"url": first_clip, "parts": clip_urls, "chapters": chapters, "cached": False, "note": "ffmpeg not available, returning first clip only"}
+        raise HTTPException(status_code=500, detail="No audio processing tools available")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process audio: {e}")
 
 @app.get("/")
 def read_root():
