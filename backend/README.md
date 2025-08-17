@@ -1,6 +1,6 @@
 # Backend (FastAPI)
 
-This backend powers PDF upload, chunking, semantic search, Gemini insights, and Text-to-Speech narration with providers: Edge TTS (free, recommended), Google Cloud TTS, Hugging Face Dia-1.6B, or offline pyttsx3.
+This backend powers PDF upload, chunking, semantic search, Gemini insights, and Text-to-Speech narration with providers: Gemini Speech (google-genai), Google Cloud TTS, Edge TTS (free), Hugging Face Dia-1.6B, or offline pyttsx3.
 
 ## Quick start
 
@@ -32,12 +32,12 @@ Minimal health-only app (optional):
 
 ## Text-to-Speech providers
 
-Preference is Edge TTS (TTS_PROVIDER=edge_tts) for free natural voices; next Google Cloud TTS; then HF Dia (if token is set); otherwise offline pyttsx3.
-You can force a provider via env `TTS_PROVIDER`:
+Default preference is Gemini Speech for the most natural multi-speaker results. You can force a provider via env `TTS_PROVIDER` (when set, the backend will only use that provider and not silently fall back):
 
 - hf_dia — Hugging Face Inference API for Dia-1.6B (requires HUGGINGFACE_API_TOKEN). Outputs MP3.
 - pyttsx3 — Offline/local TTS. Outputs WAV.
 - google — Google Cloud Text-to-Speech. Outputs MP3/OGG/WAV.
+- gemini — Google AI Studio (google-genai) Speech. Outputs MP3/OGG/WAV depending on model.
 - edge_tts — Microsoft Edge TTS (free). Outputs MP3.
 
 Provider envs:
@@ -48,6 +48,9 @@ Provider envs:
 - GOOGLE_TTS_VOICE_A, GOOGLE_TTS_VOICE_B (default voices for two-speaker podcasts)
 - GOOGLE_TTS_AUDIO_ENCODING (MP3 | OGG_OPUS | LINEAR16; default MP3)
 - EDGE_TTS_VOICE_A, EDGE_TTS_VOICE_B, EDGE_TTS_VOICE_DEFAULT (voice names)
+- GEMINI_API_KEY (falls back to GOOGLE_API_KEY)
+- GEMINI_TTS_MODEL (default gemini-2.5-pro-preview-tts)
+- GEMINI_VOICE_A, GEMINI_VOICE_B (default Charon/Puck for dialogues)
 
 See `.env.example` for a complete list.
 
@@ -56,8 +59,33 @@ See `.env.example` for a complete list.
 Use POST /generate-audio with `{ podcast: true, two_speakers: true }`. The server will:
 
 - Summarize and script a natural Alex/Jordan dialogue with Gemini
-- Synthesize each line with two distinct voices (Google TTS recommended)
+- Synthesize each line with two distinct voices (Gemini recommended)
 - Concatenate parts with ffmpeg and return:
   - `url`: merged audio file
   - `parts`: array of per-line clips (fallback)
   - `chapters`: metadata with speaker, text, and timestamps
+
+## Gemini Speech (google-genai)
+
+You can synthesize speech with Gemini's preview TTS model via `google-genai`.
+
+Setup:
+
+1) Install dependency (already in requirements.txt, otherwise):
+
+   pip install google-genai
+
+2) Environment variables:
+
+- `TTS_PROVIDER=gemini`
+- `GEMINI_API_KEY=...` (falls back to `GOOGLE_API_KEY` if set)
+- Optional: `GEMINI_TTS_MODEL=gemini-2.5-pro-preview-tts`
+- Optional default voices for multi-speaker:
+  - `GEMINI_VOICE_A=Charon`
+  - `GEMINI_VOICE_B=Aoede`
+
+3) Restart the backend.
+
+Notes:
+- If your script text includes labeled lines like `Speaker 1:` and `Speaker 2:` (or `Alex:`/`Jordan:`), the backend will request multi-speaker synthesis when using Gemini.
+- For single-speaker, provide plain text; for two-speaker podcasts, the server already generates labeled dialogue.

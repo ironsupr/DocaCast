@@ -19,6 +19,9 @@ import fitz  # PyMuPDF
 import asyncio
 import hashlib
 import threading
+import time
+import struct
+import mimetypes
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import re
@@ -29,6 +32,13 @@ try:
     import google.generativeai as genai
 except ImportError:  # pragma: no cover
     genai = None  # type: ignore
+try:
+    # New Gemini Speech (google-genai)
+    from google import genai as genai_speech  # type: ignore
+    from google.genai import types as genai_types  # type: ignore
+except Exception:  # pragma: no cover
+    genai_speech = None  # type: ignore
+    genai_types = None  # type: ignore
 try:
     import pyttsx3  # type: ignore
 except ImportError:  # pragma: no cover
@@ -53,6 +63,82 @@ if _ENV_PATH.is_file():
 else:
     # Fallback to default lookup (cwd)
     load_dotenv()
+
+
+def _convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
+    """Generates a WAV file header for the given audio data and parameters.
+    Based on reference Gemini TTS implementation.
+
+    Args:
+        audio_data: The raw audio data as a bytes object.
+        mime_type: Mime type of the audio data.
+
+    Returns:
+        A bytes object representing the WAV file with proper header.
+    """
+    parameters = _parse_audio_mime_type(mime_type)
+    bits_per_sample = parameters["bits_per_sample"]
+    sample_rate = parameters["rate"]
+    num_channels = 1
+    data_size = len(audio_data)
+    bytes_per_sample = bits_per_sample // 8
+    block_align = num_channels * bytes_per_sample
+    byte_rate = sample_rate * block_align
+    chunk_size = 36 + data_size  # 36 bytes for header fields before data chunk size
+
+    # http://soundfile.sapp.org/doc/WaveFormat/
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",          # ChunkID
+        chunk_size,       # ChunkSize (total file size - 8 bytes)
+        b"WAVE",          # Format
+        b"fmt ",          # Subchunk1ID
+        16,               # Subchunk1Size (16 for PCM)
+        1,                # AudioFormat (1 for PCM)
+        num_channels,     # NumChannels
+        sample_rate,      # SampleRate
+        byte_rate,        # ByteRate
+        block_align,      # BlockAlign
+        bits_per_sample,  # BitsPerSample
+        b"data",          # Subchunk2ID
+        data_size         # Subchunk2Size (size of audio data)
+    )
+    return header + audio_data
+
+
+def _parse_audio_mime_type(mime_type: str) -> dict:
+    """Parses bits per sample and rate from an audio MIME type string.
+    Based on reference Gemini TTS implementation.
+
+    Assumes bits per sample is encoded like "L16" and rate as "rate=xxxxx".
+
+    Args:
+        mime_type: The audio MIME type string (e.g., "audio/L16;rate=24000").
+
+    Returns:
+        A dictionary with "bits_per_sample" and "rate" keys.
+    """
+    bits_per_sample = 16
+    rate = 24000
+
+    # Extract rate from parameters
+    parts = mime_type.split(";")
+    for param in parts:  # Skip the main type part
+        param = param.strip()
+        if param.lower().startswith("rate="):
+            try:
+                rate_str = param.split("=", 1)[1]
+                rate = int(rate_str)
+            except (ValueError, IndexError):
+                # Handle cases like "rate=" with no value or non-integer value
+                pass  # Keep rate as default
+        elif param.startswith("audio/L"):
+            try:
+                bits_per_sample = int(param.split("L", 1)[1])
+            except (ValueError, IndexError):
+                pass  # Keep bits_per_sample as default if conversion fails
+
+    return {"bits_per_sample": bits_per_sample, "rate": rate}
 
 app = FastAPI(title="Adobe Hackathon Finale API")
 
@@ -86,18 +172,31 @@ def _hash_short(value: str) -> str:
 
 
 def _synthesize_with_fallback(text: str, base: str, voice: Optional[str], accent: Optional[str], style: Optional[str]) -> Tuple[str, str]:
-    """Try multiple TTS providers (edge_tts -> hf_dia -> pyttsx3) and return first success."""
-    # Try Edge first
-    try:
-        return _synthesize_speech(text, voice=voice, accent=accent, style=style, deterministic_basename=base, provider_override="edge_tts")
-    except Exception:
-        pass
-    # Then HF Dia if configured
-    try:
-        return _synthesize_speech(text, voice=voice, accent=accent, style=style, deterministic_basename=base, provider_override="hf_dia")
-    except Exception:
-        pass
-    # Finally pyttsx3 offline
+    """Try TTS providers based on env preference.
+    If a specific provider is set via TTS_PROVIDER, use ONLY that provider (no silent fallback).
+    If not set, try a sensible fallback order.
+    """
+    # Choose order based on env preference
+    pref = (os.getenv("TTS_PROVIDER") or "").strip().lower()
+    recognized = {"edge_tts", "hf_dia", "pyttsx3", "google", "gemini"}
+    order: List[str]
+    if pref in recognized and pref != "":
+        order = [pref]
+    else:
+        # Auto mode: try in order preferring Gemini first, then Google, then Edge/HF, then offline
+        order = ["gemini", "google", "edge_tts", "hf_dia", "pyttsx3"]
+    # Try in order
+    last_err: Optional[Exception] = None
+    for prov in order:
+        try:
+            return _synthesize_speech(text, voice=voice, accent=accent, style=style, deterministic_basename=base, provider_override=prov)
+        except Exception as e:
+            last_err = e
+            continue
+    # If all fail, raise the last error
+    if last_err:
+        raise last_err
+    # Fallback shouldn't reach here; use pyttsx3
     return _synthesize_speech(text, voice=voice, accent=accent, style=style, deterministic_basename=base, provider_override="pyttsx3")
 
 # Cross-document analysis caches
@@ -259,6 +358,16 @@ def diagnostics():
                 })
     elif provider == "hf_dia":
         info["hf_dia"] = {"token": bool(os.getenv("HUGGINGFACE_API_TOKEN"))}
+    elif provider == "gemini":
+        ok = False
+        err = None
+        try:
+            if genai_speech is not None:
+                _ = genai_speech.Client(api_key=(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""))
+                ok = True
+        except Exception as e:  # pragma: no cover
+            err = str(e)[:300]
+        info["gemini_speech"] = {"installed": genai_speech is not None, "client_ok": ok, "error": err}
     else:
         info["pyttsx3"] = {"available": pyttsx3 is not None}
 
@@ -1003,20 +1112,20 @@ def _gemini_script(text: str, podcast: bool = False, accent: Optional[str] = Non
 
     if two_speakers:
         prompt = f"""
-You are an expert podcast writer creating engaging conversational content. Convert the following into a natural, lively dialogue between two knowledgeable hosts named "Alex" and "Jordan".
+You are an expert podcast writer creating engaging conversational content. Convert the following into a natural, lively dialogue between two knowledgeable hosts labeled "Speaker 1" and "Speaker 2".
 
 Guidelines for natural podcast dialogue:
-- Alex tends to be more analytical and asks probing questions
-- Jordan is more enthusiastic and provides vivid explanations and examples
-- Create natural back-and-forth with interruptions, reactions, and building on each other's points
+- Speaker 1 tends to be more analytical and asks probing questions
+- Speaker 2 is more enthusiastic and provides vivid explanations and examples
+- Create natural back-and-forth with occasional reactions and building on each other's points
 - Include conversational elements like "Oh, that's fascinating!", "Wait, so you're saying...", "Exactly! And here's another thing..."
 - Vary sentence lengths naturally - some short reactions, some longer explanations
 - Target 3-5 minutes of engaging conversation
 - Stay grounded in the provided content - don't invent facts
-- Format as:
-Alex: [their dialogue]
-Jordan: [their response]
-Alex: [continuation]
+- Format EXACTLY as:
+Speaker 1: [their dialogue]
+Speaker 2: [their response]
+Speaker 1: [continuation]
 (etc.)
 
 {accent_hint}{style_hint}{expr_hint}
@@ -1113,6 +1222,121 @@ def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str
         except Exception as e:  # pragma: no cover
             raise HTTPException(status_code=500, detail=f"Failed to write audio: {e}")
         return base, f"/audio/{base}"
+
+    # Gemini Speech (google-genai) - updated to match reference implementation
+    if provider == "gemini":
+        if genai_speech is None or genai_types is None:
+            raise HTTPException(status_code=500, detail="google-genai not installed on server")
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=503, detail="GEMINI_API_KEY not configured on server")
+        try:
+            client = genai_speech.Client(api_key=api_key)
+            # Use the correct TTS model as per reference (flash, not pro)
+            model_name = (os.getenv("GEMINI_TTS_MODEL") or "gemini-2.5-flash-preview-tts").strip()
+            candidate_models = [m for m in [model_name, "gemini-2.5-flash-preview-tts"] if m]
+
+            # Build contents
+            contents = [genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=text)])]
+
+            # Voice selection - match reference code patterns
+            single_voice_name = (voice or style or os.getenv("GEMINI_VOICE_A") or "Charon").strip()
+            single_voice_cfg = genai_types.SpeechConfig(
+                voice_config=genai_types.VoiceConfig(
+                    prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=single_voice_name)
+                )
+            )
+
+            # Multi-speaker when the script contains labeled lines or style specifies two voices
+            multi_cfg = None
+            if style and "," in (style or ""):
+                a, b = [s.strip() for s in style.split(",", 1)]
+                if re.search(r"^\s*Alex:\s*", text, flags=re.IGNORECASE | re.MULTILINE):
+                    spk1, spk2 = "Alex", "Jordan"
+                elif re.search(r"^\s*Speaker\s*1:\s*", text, flags=re.IGNORECASE | re.MULTILINE):
+                    spk1, spk2 = "Speaker 1", "Speaker 2"
+                else:
+                    spk1, spk2 = "Speaker 1", "Speaker 2"
+                multi_cfg = genai_types.MultiSpeakerVoiceConfig(
+                    speaker_voice_configs=[
+                        genai_types.SpeakerVoiceConfig(
+                            speaker=spk1,
+                            voice_config=genai_types.VoiceConfig(prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=a or os.getenv("GEMINI_VOICE_A", "Charon")))
+                        ),
+                        genai_types.SpeakerVoiceConfig(
+                            speaker=spk2,
+                            voice_config=genai_types.VoiceConfig(prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=b or os.getenv("GEMINI_VOICE_B", "Puck")))
+                        ),
+                    ]
+                )
+            use_multi = bool(multi_cfg) or bool(re.search(r"^\s*(Speaker\s*\d+|Alex|Jordan)\s*:\s*", text, flags=re.IGNORECASE | re.MULTILINE))
+
+            # Generation config - corrected response_modalities to match reference
+            gen_cfg = genai_types.GenerateContentConfig(
+                temperature=1,
+                response_modalities=["audio"],  # Fixed: lowercase "audio" as per reference
+                speech_config=(genai_types.SpeechConfig(multi_speaker_voice_config=multi_cfg) if use_multi else single_voice_cfg),
+            )
+
+            # Use streaming approach like reference for better reliability
+            data_buf = bytearray()
+            mime_type: Optional[str] = None
+            last_err: Optional[Exception] = None
+            
+            for m in candidate_models:
+                try:
+                    data_buf.clear()
+                    mime_type = None
+                    for chunk in client.models.generate_content_stream(model=m, contents=contents, config=gen_cfg):
+                        if (chunk.candidates is None or 
+                            chunk.candidates[0].content is None or 
+                            chunk.candidates[0].content.parts is None):
+                            continue
+                        for part in chunk.candidates[0].content.parts:
+                            if (getattr(part, "inline_data", None) and 
+                                getattr(part.inline_data, "data", None)):
+                                if mime_type is None:
+                                    mime_type = getattr(part.inline_data, "mime_type", None)
+                                    print(f"[DEBUG] Gemini mime_type: {mime_type}")
+                                data_buf.extend(part.inline_data.data)
+                    
+                    if data_buf:  # Successfully got audio data
+                        last_err = None
+                        print(f"[DEBUG] Got {len(data_buf)} bytes of audio data")
+                        break
+                except Exception as e:
+                    last_err = e
+                    continue
+            
+            if not data_buf and last_err is not None:
+                raise last_err
+            if not data_buf:
+                raise HTTPException(status_code=502, detail="Gemini returned no audio; ensure model supports audio and API key has access")
+
+            # Convert to WAV if needed (following reference implementation)
+            ext = "wav"
+            audio_data = bytes(data_buf)
+            if mime_type and "/" in mime_type:
+                mt = mime_type.split("/")[-1].lower()
+                print(f"[DEBUG] Detected format: {mt} from mime: {mime_type}")
+                if "wav" in mt:
+                    ext = "wav"
+                elif "mpeg" in mt or "mp3" in mt:
+                    ext = "mp3"
+                elif "ogg" in mt:
+                    ext = "ogg"
+                else:
+                    # Convert non-standard format to WAV like reference code
+                    print(f"[DEBUG] Converting {mime_type} to WAV")
+                    audio_data = _convert_to_wav(audio_data, mime_type)
+                    ext = "wav"
+
+            base = f"{deterministic_basename}.{ext}" if deterministic_basename else f"tts_{uuid.uuid4().hex[:8]}_gem.{ext}"
+            out_path = _audio_dir / base
+            out_path.write_bytes(audio_data)
+            return base, f"/audio/{base}"
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Gemini speech failed: {e}")
 
     # Edge TTS (free, natural voices)
     if provider == "edge_tts":
@@ -1229,6 +1453,11 @@ async def generate_audio(req: GenerateAudioRequest):
     - Offloaded synthesis to thread pool to avoid blocking event loop.
     """
     text = (req.text or "").strip()
+    start_ts = time.time()
+    try:
+        print(f"[generate-audio] start podcast={bool(req.podcast)} two_speakers={bool(req.two_speakers)} entire_pdf={bool(req.entire_pdf)}")
+    except Exception:
+        pass
     
     # Handle entire PDF processing
     if req.entire_pdf and req.filename:
@@ -1269,6 +1498,10 @@ async def generate_audio(req: GenerateAudioRequest):
             two_speakers=two_speakers,
         )
         _script_cache[script_key] = script
+    try:
+        print(f"[generate-audio] script ready len={len(script or '')} two_speakers={two_speakers}")
+    except Exception:
+        pass
 
     provider = (os.getenv("TTS_PROVIDER") or "").lower().strip() or "auto"
 
@@ -1317,29 +1550,42 @@ async def generate_audio(req: GenerateAudioRequest):
             raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {e}")
 
         _audio_cache[audio_key] = (filename, rel_url)
+        try:
+            print(f"[generate-audio] single-speaker done provider={provider} url={rel_url} elapsed={time.time()-start_ts:.1f}s")
+        except Exception:
+            pass
         return {"url": rel_url, "cached": False}
 
     # --- Two-speaker podcast flow ---
-    # Parse the dialogue into (speaker, line) pairs - support both Alex/Jordan and Speaker A/B formats
+    # Parse the dialogue into (speaker, line) pairs - support multiple formats robustly
     lines: List[Tuple[str, str]] = []
+    pat = re.compile(r"^(?P<label>(?:Speaker\s*[12]|Alex|Jordan|Speaker\s*[AB]|[AB])):\s*(?P<text>.+)$", re.IGNORECASE)
     for raw_line in (script or "").splitlines():
-        line = raw_line.strip()
+        line = (raw_line or "").strip()
         if not line:
             continue
-        # Support multiple formats: "Alex:", "Jordan:", "Speaker A:", "A:", "B:"
-        m = re.match(r"^((Alex|Jordan)|Speaker\s+[AB]|[AB]):\s*(.+)$", line, flags=re.IGNORECASE)
+        m = pat.match(line)
         if not m:
             continue
-        label = m.group(1).strip()
-        content = m.group(3).strip()
+        label = (m.group("label") or "").strip()
+        content = (m.group("text") or "").strip()
         # Normalize labels
-        if re.fullmatch(r"[Aa]", label):
+        if re.fullmatch(r"Speaker\s*1", label, flags=re.IGNORECASE):
+            spk = "Speaker 1"
+        elif re.fullmatch(r"Speaker\s*2", label, flags=re.IGNORECASE):
+            spk = "Speaker 2"
+        elif re.fullmatch(r"[Aa]", label):
             spk = "Speaker A"
         elif re.fullmatch(r"[Bb]", label):
             spk = "Speaker B"
+        elif re.fullmatch(r"Alex", label, flags=re.IGNORECASE):
+            spk = "Speaker 1"
+        elif re.fullmatch(r"Jordan", label, flags=re.IGNORECASE):
+            spk = "Speaker 2"
         else:
             spk = label.title()
-        lines.append((spk, content))
+        if content:
+            lines.append((spk, content))
         
     if not lines:
         # Fallback to single speaker if parsing failed
@@ -1361,6 +1607,37 @@ async def generate_audio(req: GenerateAudioRequest):
             raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {e}")
         _audio_cache[audio_key] = (filename, rel_url)
         return {"url": rel_url, "cached": False}
+
+    # If Gemini is the provider, prefer single-call multi-speaker synthesis for the whole script
+    provider_eff = (os.getenv("TTS_PROVIDER") or "").lower().strip()
+    if provider_eff == "gemini":
+        try:
+            filename, rel_url = await loop.run_in_executor(
+                _tts_executor,
+                lambda: _synthesize_speech(
+                    script,
+                    voice=req.voice,
+                    fmt=req.format,
+                    accent=req.accent,
+                    style=req.style,
+                    deterministic_basename=deterministic_base,
+                    provider_override="gemini",
+                ),
+            )
+            _audio_cache[audio_key] = (filename, rel_url)
+            # No per-line parts/chapters available from single-pass synthesis
+            try:
+                print(f"[generate-audio] gemini multi-speaker done url={rel_url} elapsed={time.time()-start_ts:.1f}s")
+            except Exception:
+                pass
+            return {"url": rel_url, "cached": False}
+        except Exception as e:
+            try:
+                print(f"[generate-audio] gemini multi-speaker error: {e}")
+            except Exception:
+                pass
+            # Fall back to per-line synthesis below
+            pass
 
     # Enhanced voice mapping with natural-sounding defaults
     spk_voice: Dict[str, Optional[str]] = {}
@@ -1384,6 +1661,19 @@ async def generate_audio(req: GenerateAudioRequest):
         if "Alex" in [spk for spk, _ in lines]:
             spk_voice["Alex"] = vA
             spk_voice["Jordan"] = vB
+        else:
+            spk_voice["Speaker A"] = vA
+            spk_voice["Speaker B"] = vB
+    elif provider_eff == "gemini":
+        # Gemini prebuilt voices
+        vA = os.getenv("GEMINI_VOICE_A", "Charon")
+        vB = os.getenv("GEMINI_VOICE_B", "Aoede")
+        if "Alex" in [spk for spk, _ in lines]:
+            spk_voice["Alex"] = vA
+            spk_voice["Jordan"] = vB
+        elif "Speaker 1" in [spk for spk, _ in lines] or "Speaker 2" in [spk for spk, _ in lines]:
+            spk_voice["Speaker 1"] = vA
+            spk_voice["Speaker 2"] = vB
         else:
             spk_voice["Speaker A"] = vA
             spk_voice["Speaker B"] = vB
@@ -1423,19 +1713,48 @@ async def generate_audio(req: GenerateAudioRequest):
                 eff_accent = f"{parts[0]}-{parts[1]}"
             except Exception:
                 pass
-        try:
-            fn, url_rel = await loop.run_in_executor(
-                _tts_executor,
-                lambda: _synthesize_with_fallback(
-                    f"{content}",
-                    basename,
-                    voice_choice,
-                    eff_accent or req.accent,
-                    req.style,
-                ),
-            )
-        except Exception:
+        # Provider plan: if a provider is explicitly set via TTS_PROVIDER, use ONLY that provider
+        # to avoid mixing voices. Otherwise, try a sensible fallback order.
+        tried: List[str] = []
+        fn = None
+        url_rel = None
+        pref = (os.getenv("TTS_PROVIDER") or "").lower().strip()
+        all_providers = ["gemini", "google", "edge_tts", "hf_dia", "pyttsx3"]
+        if pref in all_providers:
+            providers_plan = [pref]
+        else:
+            providers_plan = all_providers
+        for prov in providers_plan:
+            tried.append(prov)
+            try:
+                candidate = await loop.run_in_executor(
+                    _tts_executor,
+                    lambda p=prov: _synthesize_speech(
+                        content,
+                        voice=voice_choice,
+                        fmt=req.format,
+                        accent=eff_accent or req.accent,
+                        style=None,
+                        # Tag per-line filename with provider to reflect actual synthesis source
+                        deterministic_basename=f"{basename}_{p}",
+                        provider_override=p,
+                    ),
+                )
+                if candidate and isinstance(candidate, tuple):
+                    fn, url_rel = candidate
+                    break
+            except Exception as e:
+                try:
+                    print(f"[generate-audio] per-line provider={prov} error: {e}")
+                except Exception:
+                    pass
+                continue
+        if not fn or not url_rel:
             # Skip failed lines, continue others
+            try:
+                print(f"[generate-audio] line {idx} failed tried={tried}")
+            except Exception:
+                pass
             continue
         clip_files.append((_audio_dir / fn))
         clip_urls.append(url_rel)
@@ -1506,12 +1825,20 @@ async def generate_audio(req: GenerateAudioRequest):
         if result.returncode == 0 and final_path.exists():
             final_url = f"/audio/{final_name}"
             _audio_cache[audio_key] = (final_name, final_url)
+            try:
+                print(f"[generate-audio] concat success url={final_url} elapsed={time.time()-start_ts:.1f}s")
+            except Exception:
+                pass
             return {"url": final_url, "parts": clip_urls, "chapters": chapters, "cached": False}
         else:
             # Fallback: return the first clip if concatenation fails
             if clip_urls:
                 first_clip = clip_urls[0]
                 _audio_cache[audio_key] = (clip_files[0].name, first_clip)
+                try:
+                    print(f"[generate-audio] concat failed, returning first clip elapsed={time.time()-start_ts:.1f}s")
+                except Exception:
+                    pass
                 return {"url": first_clip, "parts": clip_urls, "chapters": chapters, "cached": False}
             raise HTTPException(status_code=500, detail="Audio concatenation failed")
             

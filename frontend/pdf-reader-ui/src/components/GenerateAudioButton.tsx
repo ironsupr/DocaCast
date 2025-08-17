@@ -21,10 +21,8 @@ export default function GenerateAudioButton({ getContext, onGenerated }: Props) 
         podcast: mode === 'two',
         two_speakers: mode === 'two',
         expressiveness: mode === 'two' ? 'high' : 'medium',
-        speakers: mode === 'two' ? {
-          "Alex": "en_UK-jenny-medium",
-          "Jordan": "en_US-danny-low"
-        } : undefined
+        // Hint Gemini TTS to use these prebuilt voices; backend reads comma-separated style for multi-speaker
+        style: mode === 'two' ? 'Charon,Puck' : 'Charon'
       }
       
       const api = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')
@@ -78,8 +76,8 @@ export default function GenerateAudioButton({ getContext, onGenerated }: Props) 
       
       <button
         onClick={onClick}
-        disabled={loading}
-        title={mode === 'single' ? 'Generate single narrator' : 'Generate podcast with Alex & Jordan'}
+    disabled={loading}
+  title={mode === 'single' ? 'Generate single narrator' : 'Generate podcast with Charon & Puck'}
         style={{ 
           padding: '8px 12px', 
           borderRadius: 8, 

@@ -1,31 +1,309 @@
-# Global
+# ==========================================
+# Adobe Hackathon Project - .gitignore
+# ==========================================
+
+# ===== OPERATING SYSTEM FILES =====
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-*.log
+desktop.ini
+
+# ===== EDITOR AND IDE FILES =====
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+
+# ===== ENVIRONMENT VARIABLES =====
 .env
 .env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Python
+# ===== PYTHON BACKEND =====
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*.pyo
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
 .venv/
 venv/
-.eggs/
-.dist/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
 .pytest_cache/
+cover/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
 .mypy_cache/
+.dmypy.json
+dmypy.json
 
-# Node/Frontend
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# ===== NODE.JS / REACT FRONTEND =====
+# Dependencies
 node_modules/
-dist/
-.next/
-.out/
-.vite/
-yarn.lock
-package-lock.json
-pnpm-lock.yaml
+jspm_packages/
 
-# Uploaded files
+# Production builds
+/dist
+/build
+dist-ssr/
+*.local
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Snowpack dependency directory
+web_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+out
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Vite
+.vite/
+dist/
+
+# Svelte
+.svelte-kit
+
+# Storybook build outputs
+.out
+.storybook-out
+storybook-static
+
+# Temporary folders
+tmp/
+temp/
+
+# ===== LOGS =====
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===== LOCK FILES =====
+# Uncomment these if you want to ignore lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ===== PROJECT SPECIFIC =====
+# Uploaded documents and generated content
 backend/document_library/
 backend/generated_audio/
+backend/uploads/
+backend/temp/
+
+# Audio files
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.ogg
+*.flac
+!backend/sample_audio.*
+
+# Large files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Config files with sensitive data
+config.json
+secrets.json
+
+# ===== TESTING =====
+# Test outputs
+test-results/
+playwright-report/
+test-output/
+
+# ===== DEPLOYMENT =====
+# Docker
+.dockerignore
+Dockerfile.prod
+
+# Heroku
+.herokuapp/
+
+# Vercel
+.vercel
+
+# Netlify
+.netlify
+
+# ===== BACKUP FILES =====
+*.bak
+*.backup
+*.tmp
+*.temp
