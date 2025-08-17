@@ -1,15 +1,25 @@
+# Core FastAPI dependencies
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
 pydantic
+
+# PDF and text processing
 PyMuPDF
 sentence-transformers
+numpy
 faiss-cpu
+
+# AI and TTS services
 google-generativeai
 google-genai
 google-cloud-texttospeech
-python-dotenv
-pyttsx3
-requests
-pydub
 edge-tts
+pyttsx3
+
+# Audio processing
+pydub
+
+# Utilities
+python-dotenv
+requests

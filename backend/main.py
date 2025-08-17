@@ -1173,8 +1173,114 @@ def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str
     hf_token = os.getenv("HUGGINGFACE_API_TOKEN")
     hf_model = os.getenv("HF_DIA_MODEL", "nari-labs/Dia-1.6B")
 
+    # Always use Gemini TTS implementation
+    if genai_speech is None or genai_types is None:
+        raise HTTPException(status_code=500, detail="google-genai not installed on server")
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY not configured on server")
+    try:
+        client = genai_speech.Client(api_key=api_key)
+        model_name = (os.getenv("GEMINI_TTS_MODEL") or "gemini-2.5-flash-preview-tts").strip()
+        candidate_models = [m for m in [model_name, "gemini-2.5-flash-preview-tts"] if m]
+
+        contents = [genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=text)])]
+
+        single_voice_name = (voice or style or os.getenv("GEMINI_VOICE_A") or "Charon").strip()
+        single_voice_cfg = genai_types.SpeechConfig(
+            voice_config=genai_types.VoiceConfig(
+                prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=single_voice_name)
+            )
+        )
+
+        multi_cfg = None
+        if style and "," in (style or ""):
+            a, b = [s.strip() for s in style.split(",", 1)]
+            if re.search(r"^\s*Alex:\s*", text, flags=re.IGNORECASE | re.MULTILINE):
+                spk1, spk2 = "Alex", "Jordan"
+            elif re.search(r"^\s*Speaker\s*1:\s*", text, flags=re.IGNORECASE | re.MULTILINE):
+                spk1, spk2 = "Speaker 1", "Speaker 2"
+            else:
+                spk1, spk2 = "Speaker 1", "Speaker 2"
+            multi_cfg = genai_types.MultiSpeakerVoiceConfig(
+                speaker_voice_configs=[
+                    genai_types.SpeakerVoiceConfig(
+                        speaker=spk1,
+                        voice_config=genai_types.VoiceConfig(prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=a or os.getenv("GEMINI_VOICE_A", "Charon")))
+                    ),
+                    genai_types.SpeakerVoiceConfig(
+                        speaker=spk2,
+                        voice_config=genai_types.VoiceConfig(prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=b or os.getenv("GEMINI_VOICE_B", "Puck")))
+                    ),
+                ]
+            )
+        use_multi = bool(multi_cfg) or bool(re.search(r"^\s*(Speaker\s*\d+|Alex|Jordan)\s*:\s*", text, flags=re.IGNORECASE | re.MULTILINE))
+
+        gen_cfg = genai_types.GenerateContentConfig(
+            temperature=1,
+            response_modalities=["audio"],
+            speech_config=(genai_types.SpeechConfig(multi_speaker_voice_config=multi_cfg) if use_multi else single_voice_cfg),
+        )
+
+        data_buf = bytearray()
+        mime_type: Optional[str] = None
+        last_err: Optional[Exception] = None
+        
+        for m in candidate_models:
+            try:
+                data_buf.clear()
+                mime_type = None
+                for chunk in client.models.generate_content_stream(model=m, contents=contents, config=gen_cfg):
+                    if (chunk.candidates is None or 
+                        chunk.candidates[0].content is None or 
+                        chunk.candidates[0].content.parts is None):
+                        continue
+                    for part in chunk.candidates[0].content.parts:
+                        if (getattr(part, "inline_data", None) and 
+                            getattr(part.inline_data, "data", None)):
+                            if mime_type is None:
+                                mime_type = getattr(part.inline_data, "mime_type", None)
+                                print(f"[DEBUG] Gemini mime_type: {mime_type}")
+                            data_buf.extend(part.inline_data.data)
+                
+                if data_buf:
+                    last_err = None
+                    print(f"[DEBUG] Got {len(data_buf)} bytes of audio data")
+                    break
+            except Exception as e:
+                last_err = e
+                continue
+        
+        if not data_buf and last_err is not None:
+            raise last_err
+        if not data_buf:
+            raise HTTPException(status_code=502, detail="Gemini returned no audio; ensure model supports audio and API key has access")
+
+        ext = "wav"
+        audio_data = bytes(data_buf)
+        if mime_type and "/" in mime_type:
+            mt = mime_type.split("/")[-1].lower()
+            print(f"[DEBUG] Detected format: {mt} from mime: {mime_type}")
+            if "wav" in mt:
+                ext = "wav"
+            elif "mpeg" in mt or "mp3" in mt:
+                ext = "mp3"
+            elif "ogg" in mt:
+                ext = "ogg"
+            else:
+                print(f"[DEBUG] Converting {mime_type} to WAV")
+                audio_data = _convert_to_wav(audio_data, mime_type)
+                ext = "wav"
+
+        base = f"{deterministic_basename}.{ext}" if deterministic_basename else f"tts_{uuid.uuid4().hex[:8]}_gem.{ext}"
+        out_path = _audio_dir / base
+        out_path.write_bytes(audio_data)
+        return base, f"/audio/{base}"
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini speech failed: {e}")
+
     # If Google TTS selected, use that
-    if provider == "google":
+    if False:  # Disabled - using Gemini TTS for all providers
         if google_tts is None:
             raise HTTPException(status_code=500, detail="google-cloud-texttospeech not installed on server")
         # Auth: prefer explicit JSON in env, else default credentials (file path handled by library via GOOGLE_APPLICATION_CREDENTIALS)
@@ -1224,7 +1330,7 @@ def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str
         return base, f"/audio/{base}"
 
     # Gemini Speech (google-genai) - updated to match reference implementation
-    if provider == "gemini":
+    if False:  # Disabled - using Gemini TTS for all providers
         if genai_speech is None or genai_types is None:
             raise HTTPException(status_code=500, detail="google-genai not installed on server")
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -1339,7 +1445,7 @@ def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str
             raise HTTPException(status_code=500, detail=f"Gemini speech failed: {e}")
 
     # Edge TTS (free, natural voices)
-    if provider == "edge_tts":
+    if False:  # Disabled - using Gemini TTS for all providers
         if edge_tts is None:
             raise HTTPException(status_code=500, detail="edge-tts not installed on server")
         voice_name = (voice or style or os.getenv("EDGE_TTS_VOICE_DEFAULT") or "en-US-AriaNeural")
@@ -1361,10 +1467,10 @@ def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str
         return base, f"/audio/{base}"
 
     # Decide provider: HF > pyttsx3 (skip Edge-TTS for now to avoid asyncio conflicts)
-    use_hf = (provider == "hf_dia") or (provider == "" and bool(hf_token))
+    use_hf = False  # Disabled - using Gemini TTS for all providers
 
     # Hugging Face Dia-1.6B via Inference API (mp3)
-    if use_hf and hf_token:
+    if False:  # Disabled - using Gemini TTS for all providers
         if requests is None:
             raise HTTPException(status_code=500, detail="requests library not installed on server")
         url = f"https://api-inference.huggingface.co/models/{hf_model}"
@@ -1416,7 +1522,7 @@ def _synthesize_speech(text: str, voice: Optional[str] = None, fmt: Optional[str
         # Otherwise: fall through to offline pyttsx3
 
     # Offline provider: pyttsx3 (WAV)
-    if pyttsx3 is None:
+    if False:  # Disabled - using Gemini TTS for all providers
         raise HTTPException(status_code=500, detail="No TTS providers available. Install edge-tts, configure HUGGINGFACE_API_TOKEN, or install pyttsx3")
     ext = "wav"
     voice_name = voice or os.getenv("PYTTSX3_VOICE") or ""
