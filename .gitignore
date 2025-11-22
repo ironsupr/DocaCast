@@ -33,32 +33,60 @@ backend/env/
 .venv/
 venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
 # Python cache and compiled files
 backend/__pycache__/
 __pycache__/
 *.py[cod]
+*$py.class
 *.so
 .Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Testing and coverage
 .coverage
+.coverage.*
 .pytest_cache/
 .mypy_cache/
+.dmypy.json
+dmypy.json
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.pytype/
+cython_debug/
 
 # ===== NODE.JS / REACT FRONTEND =====
 # Dependencies
 frontend/pdf-reader-ui/node_modules/
 node_modules/
+jspm_packages/
 
 # Build outputs
 frontend/pdf-reader-ui/dist/
 frontend/pdf-reader-ui/build/
 dist/
 build/
+out/
 
 # Cache and temporary files
 frontend/pdf-reader-ui/.cache/
@@ -67,11 +95,27 @@ frontend/pdf-reader-ui/.next/
 .cache/
 .vite/
 .next/
+.turbo/
+.nuxt/
+.output/
+.svelte-kit/
 
 # TypeScript and bundler cache
 *.tsbuildinfo
 .npm
 *.local
+.yarn/
+.pnp.*
+.yarn-integrity
+
+# Logs and debug
+lerna-debug.log*
+.eslintcache
+.stylelintcache
+
+# Storybook
+.storybook/
+storybook-static/
 
 # ===== LOGS =====
 *.log
@@ -87,6 +131,8 @@ backend/audio/
 backend/generated_audio/
 backend/uploads/
 backend/temp/
+backend/cache/
+backend/logs/
 
 # Audio files
 *.wav
@@ -96,10 +142,17 @@ backend/temp/
 *.flac
 !backend/sample_audio.*
 
+# PDF files (except samples)
+backend/document_library/*.pdf
+!backend/document_library/sample.pdf
+
 # Database files
 *.db
 *.sqlite
 *.sqlite3
+
+# Text file lists for ffmpeg
+backend/generated_audio/*_files.txt
 
 # ===== LARGE FILES =====
 *.zip
@@ -107,16 +160,38 @@ backend/temp/
 *.rar
 *.7z
 
+# Model files
+*.pkl
+*.pickle
+*.h5
+*.pt
+*.pth
+*.onnx
+
+# Vector store files
+*.index
+*.faiss
+embeddings/
+vector_db/
+
 # ===== BACKUP FILES =====
 *.bak
 *.tmp
 *.temp
 *.backup
+*.orig
+*.swp
+*~
+.~*
 
 # ===== DEPLOYMENT =====
 .vercel
+.vercel/
 .netlify
+.netlify/
 .herokuapp/
+vercel.log
+deployment-url.txt
 
 # ===== SECURITY =====
 # API keys and secrets
@@ -124,3 +199,10 @@ config.json
 secrets.json
 *.pem
 *.key
+*.p12
+*.pfx
+service-account.json
+service-account-*.json
+credentials.json
+.credentials/
+secrets/
