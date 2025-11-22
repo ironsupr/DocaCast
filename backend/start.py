@@ -41,7 +41,10 @@ def check_environment():
 
 def get_port():
     """Get port from environment or use default"""
-    port = os.getenv('PORT', '8000')
+    port = os.getenv('PORT')
+    if not port:
+        logger.warning("⚠️ PORT environment variable not set, using 10000")
+        port = '10000'
     logger.info(f"🔌 Using port: {port}")
     return port
 
@@ -60,16 +63,7 @@ def main():
         # Get port
         port = get_port()
         
-        # Import app to check for errors
-        logger.info("📦 Importing FastAPI application...")
-        try:
-            from main import app
-            logger.info("✅ FastAPI app imported successfully")
-        except Exception as e:
-            logger.error(f"❌ Failed to import app: {e}")
-            logger.error("Attempting to continue anyway...")
-        
-        # Start uvicorn
+        # Start uvicorn immediately - don't pre-import app as it's slow
         logger.info(f"🎯 Starting Uvicorn on 0.0.0.0:{port}")
         logger.info("=" * 50)
         
@@ -80,7 +74,8 @@ def main():
             port=int(port),
             workers=1,
             log_level="info",
-            access_log=True
+            access_log=True,
+            timeout_keep_alive=30
         )
         
     except Exception as e:
