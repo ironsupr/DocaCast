@@ -1,0 +1,29 @@
+services:
+  # Backend API Service
+  - type: web
+    name: docacast-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python start.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 10000
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TTS_PROVIDER
+        value: gemini
+      - key: GEMINI_VOICE_A
+        value: Charon
+      - key: GEMINI_VOICE_B
+        value: Aoede
+      - key: UVICORN_HOST
+        value: 0.0.0.0
+      - key: UVICORN_PORT
+        value: 10000
+    healthCheckPath: /v1/health
+    autoDeploy: true
