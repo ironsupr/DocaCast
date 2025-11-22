@@ -25,9 +25,11 @@ Upload a PDF document for processing and podcast generation.
 **Content Type:** `multipart/form-data`
 
 **Parameters:**
+
 - `file` (required): PDF file to upload
 
 **Response:**
+
 ```json
 {
   "message": "File uploaded successfully",
@@ -38,6 +40,7 @@ Upload a PDF document for processing and podcast generation.
 ```
 
 **Example:**
+
 ```bash
 curl -X POST "http://127.0.0.1:8001/upload" \
   -F "file=@document.pdf"
@@ -50,6 +53,7 @@ Get a list of all uploaded PDF documents.
 **Endpoint:** `GET /documents`
 
 **Response:**
+
 ```json
 {
   "documents": [
@@ -74,6 +78,7 @@ Generate podcast-style audio from PDF content with AI-powered conversations.
 **Content Type:** `application/json`
 
 **Parameters:**
+
 - `filename` (required): Name of the uploaded PDF file
 - `page_number` (optional): Specific page to process (default: processes entire document)
 - `podcast` (optional): Enable podcast mode (default: `true`)
@@ -84,12 +89,14 @@ Generate podcast-style audio from PDF content with AI-powered conversations.
 - `content_style` (optional): Content generation style (`"conversational"`, `"academic"`, `"casual"`)
 
 **TTS Engine Options:**
+
 - `"edge-tts"` (recommended): Microsoft Edge TTS
 - `"google-cloud"`: Google Cloud Text-to-Speech
 - `"huggingface"`: Hugging Face TTS models
 - `"pyttsx3"`: Offline TTS engine
 
 **Request Body:**
+
 ```json
 {
   "filename": "research_paper.pdf",
@@ -102,6 +109,7 @@ Generate podcast-style audio from PDF content with AI-powered conversations.
 ```
 
 **Response:**
+
 ```json
 {
   "audio_url": "/generated_audio/podcast_abc123.wav",
@@ -116,7 +124,7 @@ Generate podcast-style audio from PDF content with AI-powered conversations.
     },
     {
       "index": 1,
-      "speaker": "Jordan", 
+      "speaker": "Jordan",
       "text": "That's a fascinating topic, Alex...",
       "start_ms": 15000,
       "end_ms": 32000
@@ -134,11 +142,13 @@ Generate a comprehensive podcast covering the entire PDF document.
 **Endpoint:** `POST /generate-full-podcast`
 
 **Parameters:**
+
 - `filename` (required): Name of the uploaded PDF file
 - `max_duration` (optional): Maximum duration in minutes (default: 30)
 - `summary_level` (optional): Level of detail (`"brief"`, `"detailed"`, `"comprehensive"`)
 
 **Request Body:**
+
 ```json
 {
   "filename": "research_paper.pdf",
@@ -158,12 +168,14 @@ Perform semantic search on uploaded PDF documents.
 **Content Type:** `application/json`
 
 **Parameters:**
+
 - `query` (required): Search query text
 - `filename` (optional): Specific file to search (searches all if omitted)
 - `top_k` (optional): Number of results to return (default: 5)
 - `similarity_threshold` (optional): Minimum similarity score (default: 0.3)
 
 **Request Body:**
+
 ```json
 {
   "query": "What are the main research findings?",
@@ -174,6 +186,7 @@ Perform semantic search on uploaded PDF documents.
 ```
 
 **Response:**
+
 ```json
 {
   "results": [
@@ -197,17 +210,16 @@ Get an AI-generated summary of a PDF document.
 **Endpoint:** `GET /summary/{filename}`
 
 **Parameters:**
+
 - `filename` (required): Name of the PDF file
 - `summary_type` (optional): Type of summary (`"brief"`, `"detailed"`, `"outline"`)
 
 **Response:**
+
 ```json
 {
   "summary": "This document discusses...",
-  "key_points": [
-    "Key finding 1",
-    "Key finding 2"
-  ],
+  "key_points": ["Key finding 1", "Key finding 2"],
   "topics": ["AI", "Machine Learning", "Research"],
   "page_count": 25,
   "word_count": 8500
@@ -223,6 +235,7 @@ Retrieve generated audio files.
 **Endpoint:** `GET /generated_audio/{filename}`
 
 **Parameters:**
+
 - `filename` (required): Audio file name
 
 **Response:** Audio file stream (WAV format)
@@ -234,6 +247,7 @@ Get a list of all generated audio files.
 **Endpoint:** `GET /audio-files`
 
 **Response:**
+
 ```json
 {
   "audio_files": [
@@ -257,6 +271,7 @@ Check system health and status.
 **Endpoint:** `GET /health`
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -277,16 +292,14 @@ Get system capabilities and configuration.
 **Endpoint:** `GET /system-info`
 
 **Response:**
+
 ```json
 {
   "available_tts_engines": ["edge-tts", "google-cloud", "pyttsx3"],
   "supported_file_types": ["pdf"],
   "max_file_size": 52428800,
   "available_voices": {
-    "edge-tts": [
-      "en-GB-LibbyNeural",
-      "en-US-AriaNeural"
-    ]
+    "edge-tts": ["en-GB-LibbyNeural", "en-US-AriaNeural"]
   }
 }
 ```
@@ -327,6 +340,7 @@ For real-time updates during audio generation:
 **Endpoint:** `ws://127.0.0.1:8001/ws/audio-generation`
 
 **Messages:**
+
 ```json
 {
   "type": "progress",
@@ -339,6 +353,7 @@ For real-time updates during audio generation:
 ## SDK Examples
 
 ### Python
+
 ```python
 import requests
 
@@ -361,31 +376,33 @@ response = requests.post(
 ```
 
 ### JavaScript
+
 ```javascript
 // Upload file
 const formData = new FormData();
-formData.append('file', file);
+formData.append("file", file);
 
-const uploadResponse = await fetch('http://127.0.0.1:8001/upload', {
-    method: 'POST',
-    body: formData
+const uploadResponse = await fetch("http://127.0.0.1:8001/upload", {
+  method: "POST",
+  body: formData,
 });
 
 // Generate podcast
-const audioResponse = await fetch('http://127.0.0.1:8001/generate-audio', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-        filename: 'document.pdf',
-        podcast: true,
-        two_speakers: true
-    })
+const audioResponse = await fetch("http://127.0.0.1:8001/generate-audio", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    filename: "document.pdf",
+    podcast: true,
+    two_speakers: true,
+  }),
 });
 ```
 
 ### cURL
+
 ```bash
 # Upload file
 curl -X POST "http://127.0.0.1:8001/upload" \
@@ -412,6 +429,7 @@ curl -X POST "http://127.0.0.1:8001/generate-audio" \
 ## Changelog
 
 ### v1.0.0
+
 - Initial API release
 - Basic PDF upload and processing
 - Two-speaker podcast generation

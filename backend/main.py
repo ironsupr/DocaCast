@@ -1977,6 +1977,7 @@ def read_root():
 async def upload_files(files: List[UploadFile] = File(...)):
     """Accept multiple file uploads and save them to backend/document_library.
     Returns the list of saved filenames.
+    Processing is deferred to avoid timeouts on slow connections.
     """
     base_dir = Path(__file__).resolve().parent
     save_dir = base_dir / "document_library"
@@ -1992,17 +1993,30 @@ async def upload_files(files: List[UploadFile] = File(...)):
             out.write(content)
         saved.append(safe_name)
 
-        # Process the saved PDF into chunks + embeddings and add to the vector store
-        try:
-            processed = process_pdf(str(target))
-            if processed:
-                store.add_documents(processed, filename=safe_name)
-        except Exception as e:
-            # Skip processing errors per-file but continue others
-            # Optionally, log e
-            pass
-
     return {"saved": saved}
+
+
+@app.post("/process")
+async def process_document(filename: str):
+    """Process a previously uploaded PDF and add it to the vector store.
+    This is separated from upload to avoid timeouts.
+    """
+    base_dir = Path(__file__).resolve().parent
+    save_dir = base_dir / "document_library"
+    target = save_dir / filename
+    
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"File {filename} not found")
+    
+    try:
+        processed = process_pdf(str(target))
+        if processed:
+            store.add_documents(processed, filename=filename)
+            return {"status": "success", "chunks": len(processed)}
+        else:
+            return {"status": "no_content", "chunks": 0}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

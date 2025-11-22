@@ -7,30 +7,35 @@ DocaCast is an innovative application that combines semantic PDF analysis with a
 ## ✨ Key Features
 
 ### 🎧 **Natural Two-Speaker Podcasts**
+
 - **Alex** (Analytical Host): UK English female voice, asks probing questions
 - **Jordan** (Enthusiastic Host): US English male voice, provides vivid explanations
 - Natural conversation flow with interruptions, reactions, and dynamic interactions
 - Conversational elements like "Oh, that's fascinating!" and "Wait, so you're saying..."
 
 ### 📖 **Intelligent PDF Processing**
+
 - Semantic search and analysis of entire PDF documents
 - Smart content summarization and dialogue structuring
 - Support for academic papers, reports, and lengthy documents
 - Vector-based similarity search for relevant content retrieval
 
 ### 🎙️ **Advanced TTS Options**
+
 1. **Edge-TTS** (Recommended): Microsoft's neural voices for natural speech
 2. **Google Cloud TTS**: High-quality cloud-based text-to-speech
 3. **Hugging Face TTS**: AI-powered voices with customization
 4. **pyttsx3**: Offline fallback option
 
 ### 🔧 **Flexible Audio Generation Modes**
+
 - **Single Narrator**: Traditional narration for quick content overview
 - **Two-Speaker Podcast**: Conversational dialogue between AI hosts
 - **Full PDF Podcast**: Complete document coverage with engaging discussions
 - **Page-by-Page**: Generate audio for specific sections or pages
 
 ### 🎨 **Interactive Web Interface**
+
 - Modern React-based UI with TypeScript
 - Adobe PDF Embed API integration for document viewing
 - Real-time audio playback with chapter navigation
@@ -40,6 +45,7 @@ DocaCast is an innovative application that combines semantic PDF analysis with a
 ## 🏗️ Architecture
 
 ### Backend (FastAPI)
+
 - **Framework**: FastAPI with uvicorn server
 - **PDF Processing**: PyMuPDF for text extraction and analysis
 - **AI Integration**: Google Generative AI (Gemini) for content generation
@@ -47,6 +53,7 @@ DocaCast is an innovative application that combines semantic PDF analysis with a
 - **Audio Generation**: Multiple TTS engines with fallback support
 
 ### Frontend (React + Vite)
+
 - **Framework**: React 19 with TypeScript
 - **Build Tool**: Vite for fast development and building
 - **PDF Viewer**: Adobe PDF Embed API integration
@@ -56,6 +63,7 @@ DocaCast is an innovative application that combines semantic PDF analysis with a
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Python 3.8+
 - Node.js 16+
 - Google API Key (for Gemini AI)
@@ -64,12 +72,14 @@ DocaCast is an innovative application that combines semantic PDF analysis with a
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/ironsupr/DocaCast.git
    cd DocaCast
    ```
 
 2. **Backend Setup**
+
    ```bash
    cd backend
    pip install -r requirements.txt
@@ -84,6 +94,7 @@ DocaCast is an innovative application that combines semantic PDF analysis with a
 ### Environment Configuration
 
 #### Backend Environment (.env in `backend/`)
+
 ```env
 GOOGLE_API_KEY=your_google_api_key_here
 # Optional: Custom server settings
@@ -92,6 +103,7 @@ GOOGLE_API_KEY=your_google_api_key_here
 ```
 
 #### Frontend Environment (.env in `frontend/pdf-reader-ui/`)
+
 ```env
 VITE_ADOBE_CLIENT_ID=your_adobe_embed_client_id
 VITE_API_BASE_URL=http://127.0.0.1:8001
@@ -100,12 +112,14 @@ VITE_API_BASE_URL=http://127.0.0.1:8001
 ### Running the Application
 
 1. **Start the Backend**
+
    ```bash
    cd backend
    uvicorn main:app --reload --host 127.0.0.1 --port 8001
    ```
 
 2. **Start the Frontend**
+
    ```bash
    cd frontend/pdf-reader-ui
    npm run dev
@@ -116,9 +130,38 @@ VITE_API_BASE_URL=http://127.0.0.1:8001
    - Upload a PDF document
    - Generate your podcast!
 
+## 🚀 Quick Deploy to Vercel
+
+Deploy DocaCast to Vercel using the web interface - **no CLI required!**
+
+### Quick Start:
+1. **Get your API keys**:
+   - [Google Gemini API Key](https://makersuite.google.com/app/apikey)
+   - [Adobe PDF Embed Client ID](https://developer.adobe.com/console)
+
+2. **Deploy to Vercel**:
+   - Go to [vercel.com/dashboard](https://vercel.com/dashboard)
+   - Click "Add New..." → "Project"
+   - Import your repository
+   - Set environment variables (see below)
+   - Click Deploy! ✨
+
+3. **Required Environment Variables**:
+   ```
+   GOOGLE_API_KEY=your_google_api_key
+   VITE_ADOBE_CLIENT_ID=your_adobe_client_id
+   ```
+
+### 📖 Detailed Guides:
+- **[Complete Vercel Deployment Guide →](VERCEL_DEPLOYMENT.md)** - Step-by-step with screenshots
+- **[Pre-Deployment Checklist →](DEPLOYMENT_CHECKLIST.md)** - Ensure everything is ready
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ironsupr/DocaCast)
+
 ## 📋 Usage Guide
 
 ### Basic Workflow
+
 1. **Upload PDF**: Use the file picker to select your document
 2. **Choose Mode**: Select single narrator or two-speaker podcast
 3. **Generate Audio**: Click generate and wait for AI processing
@@ -127,6 +170,7 @@ VITE_API_BASE_URL=http://127.0.0.1:8001
 ### API Endpoints
 
 #### Generate Audio
+
 ```bash
 POST /generate-audio
 {
@@ -139,6 +183,7 @@ POST /generate-audio
 ```
 
 #### Semantic Search
+
 ```bash
 POST /search
 {
@@ -149,6 +194,7 @@ POST /search
 ```
 
 #### Upload Document
+
 ```bash
 POST /upload
 Content-Type: multipart/form-data
@@ -158,6 +204,7 @@ file: [PDF file]
 ## 🛠️ Development
 
 ### Project Structure
+
 ```
 DocaCast/
 ├── backend/                 # FastAPI backend
@@ -177,6 +224,7 @@ DocaCast/
 ```
 
 ### Key Technologies
+
 - **Backend**: FastAPI, PyMuPDF, FAISS, Sentence Transformers, Google AI
 - **Frontend**: React, TypeScript, Vite, Adobe PDF Embed API
 - **AI/ML**: Google Gemini, Multiple TTS engines, Vector embeddings
@@ -203,6 +251,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 For questions, issues, or contributions:
+
 - Open an issue on GitHub
 - Contact: [Your contact information]
 

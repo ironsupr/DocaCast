@@ -90,6 +90,7 @@ VITE_AUTO_PLAY=false
 ### AI Model Settings
 
 #### Embedding Model
+
 Controls the model used for text embeddings and semantic search.
 
 ```env
@@ -97,11 +98,13 @@ EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ```
 
 **Options:**
+
 - `sentence-transformers/all-MiniLM-L6-v2` (default, fast and lightweight)
 - `sentence-transformers/all-mpnet-base-v2` (higher quality, slower)
 - `sentence-transformers/multi-qa-mpnet-base-dot-v1` (optimized for Q&A)
 
 #### Gemini Configuration
+
 Settings for Google's Generative AI model.
 
 ```env
@@ -113,6 +116,7 @@ GEMINI_TOP_K=40
 ```
 
 **Temperature Values:**
+
 - `0.0-0.3`: Conservative, factual responses
 - `0.4-0.7`: Balanced creativity and accuracy (recommended)
 - `0.8-1.0`: Creative, varied responses
@@ -120,6 +124,7 @@ GEMINI_TOP_K=40
 ### TTS Engine Configuration
 
 #### Edge-TTS Settings
+
 ```env
 DEFAULT_TTS_ENGINE=edge-tts
 EDGE_TTS_VOICE_ALEX=en-GB-LibbyNeural
@@ -129,6 +134,7 @@ EDGE_TTS_PITCH=+0Hz
 ```
 
 #### Google Cloud TTS Settings
+
 ```env
 GOOGLE_TTS_PROJECT_ID=your_project_id
 GOOGLE_TTS_VOICE_ALEX=en-GB-Neural2-A
@@ -138,6 +144,7 @@ GOOGLE_TTS_PITCH=0.0
 ```
 
 #### pyttsx3 Settings
+
 ```env
 PYTTSX3_RATE=200
 PYTTSX3_VOLUME=0.9
@@ -148,6 +155,7 @@ PYTTSX3_VOICE_JORDAN=1
 ### Audio Processing
 
 #### Output Format Configuration
+
 ```env
 AUDIO_OUTPUT_FORMAT=wav
 AUDIO_SAMPLE_RATE=22050
@@ -156,11 +164,13 @@ AUDIO_BITRATE=128000  # For MP3 output
 ```
 
 **Supported Formats:**
+
 - `wav` (recommended for quality)
 - `mp3` (smaller file size)
 - `ogg` (open source alternative)
 
 #### Podcast Generation Settings
+
 ```env
 # Conversation parameters
 PODCAST_MIN_SPEAKERS=2
@@ -183,6 +193,7 @@ OUTRO_DURATION=5   # Seconds
 ### Vector Store Configuration
 
 #### FAISS Settings
+
 ```env
 VECTOR_STORE_TYPE=faiss
 VECTOR_DIMENSION=384
@@ -191,6 +202,7 @@ ENABLE_GPU_ACCELERATION=false
 ```
 
 #### Similarity Search
+
 ```env
 DEFAULT_TOP_K=5
 SIMILARITY_THRESHOLD=0.3
@@ -201,6 +213,7 @@ ENABLE_RERANKING=true
 ### File Processing
 
 #### PDF Processing Settings
+
 ```env
 # Text extraction
 PDF_TEXT_EXTRACTION_METHOD=pymupdf
@@ -220,6 +233,7 @@ CHUNK_METHOD=semantic  # or 'fixed'
 ```
 
 #### Upload Restrictions
+
 ```env
 MAX_FILE_SIZE=52428800  # 50MB
 MAX_FILES_PER_USER=100
@@ -230,6 +244,7 @@ SCAN_UPLOADED_FILES=true  # Virus scanning
 ### Performance Tuning
 
 #### Server Performance
+
 ```env
 UVICORN_WORKERS=1  # Increase for production
 WORKER_TIMEOUT=300
@@ -238,6 +253,7 @@ ENABLE_ASYNC_PROCESSING=true
 ```
 
 #### Memory Management
+
 ```env
 MAX_MEMORY_USAGE=4096  # MB
 ENABLE_MEMORY_MONITORING=true
@@ -245,6 +261,7 @@ GARBAGE_COLLECTION_THRESHOLD=0.8
 ```
 
 #### Caching
+
 ```env
 ENABLE_CACHING=true
 CACHE_TYPE=memory  # or 'redis', 'file'
@@ -256,6 +273,7 @@ REDIS_URL=redis://localhost:6379  # If using Redis
 ### Security Configuration
 
 #### CORS Settings
+
 ```env
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 CORS_METHODS=GET,POST,PUT,DELETE
@@ -264,6 +282,7 @@ CORS_CREDENTIALS=false
 ```
 
 #### Rate Limiting
+
 ```env
 ENABLE_RATE_LIMITING=true
 RATE_LIMIT_REQUESTS=100
@@ -272,6 +291,7 @@ RATE_LIMIT_STORAGE=memory  # or 'redis'
 ```
 
 #### File Security
+
 ```env
 SCAN_UPLOADS=true
 QUARANTINE_SUSPICIOUS_FILES=true
@@ -282,6 +302,7 @@ MAX_SCAN_TIME=30  # Seconds
 ### Logging and Monitoring
 
 #### Log Configuration
+
 ```env
 LOG_LEVEL=INFO
 LOG_FORMAT=%(asctime)s - %(name)s - %(levelname)s - %(message)s
@@ -291,6 +312,7 @@ LOG_RETENTION_DAYS=30
 ```
 
 #### Monitoring
+
 ```env
 ENABLE_METRICS=true
 METRICS_PORT=9090
@@ -301,6 +323,7 @@ PROMETHEUS_METRICS=true
 ### Development Settings
 
 #### Debug Configuration
+
 ```env
 DEBUG=false
 ENABLE_AUTO_RELOAD=true  # Development only
@@ -309,6 +332,7 @@ ENABLE_PROFILING=false
 ```
 
 #### Testing Configuration
+
 ```env
 TEST_DATABASE_URL=sqlite:///test.db
 ENABLE_TEST_MODE=false
@@ -347,6 +371,7 @@ RATE_LIMIT_REQUESTS=1000
 ### Docker Configuration
 
 #### docker-compose.yml Environment
+
 ```yaml
 environment:
   - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -368,18 +393,21 @@ The application validates configuration on startup. Common validation errors:
 ## Environment-Specific Configurations
 
 ### Development
+
 - Enable debug logging
 - Allow CORS from localhost
 - Use local file caching
 - Mock AI services for testing
 
 ### Staging
+
 - Moderate logging
 - Restricted CORS origins
 - Redis caching
 - Real AI services with limits
 
 ### Production
+
 - Minimal logging
 - Strict security settings
 - Distributed caching
@@ -397,12 +425,14 @@ The application validates configuration on startup. Common validation errors:
 ## Troubleshooting Configuration Issues
 
 ### Common Problems
+
 - **API key not working**: Check key format and permissions
 - **High memory usage**: Reduce chunk sizes or enable caching
 - **Slow audio generation**: Optimize TTS settings
 - **File upload failures**: Check file size limits and permissions
 
 ### Diagnostic Commands
+
 ```bash
 # Check configuration
 python -c "from main import app; print('Config loaded successfully')"

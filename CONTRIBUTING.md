@@ -41,6 +41,7 @@ Before contributing, ensure you have:
 
 1. Fork the repository on GitHub
 2. Clone your fork locally:
+
    ```bash
    git clone https://github.com/your-username/DocaCast.git
    cd DocaCast
@@ -157,34 +158,41 @@ git commit -m "test: add unit tests for vector store operations"
 ### Pull Request Process
 
 1. **Update your branch**:
+
    ```bash
    git fetch upstream
    git rebase upstream/main
    ```
 
 2. **Create a pull request** with:
+
    - Clear title and description
    - Reference to related issues
    - Screenshots for UI changes
    - Test results if applicable
 
 3. **Pull request template**:
+
    ```markdown
    ## Description
+
    Brief description of changes
 
    ## Type of Change
+
    - [ ] Bug fix
    - [ ] New feature
    - [ ] Documentation update
    - [ ] Refactoring
 
    ## Testing
+
    - [ ] Tests pass locally
    - [ ] Added new tests if needed
    - [ ] Manual testing completed
 
    ## Related Issues
+
    Fixes #123
 
    ## Screenshots (if applicable)
@@ -202,26 +210,32 @@ git commit -m "test: add unit tests for vector store operations"
 
 ```markdown
 ## Bug Description
+
 Clear description of the bug
 
 ## Steps to Reproduce
+
 1. Go to '...'
 2. Click on '...'
 3. See error
 
 ## Expected Behavior
+
 What should happen
 
 ## Actual Behavior
+
 What actually happens
 
 ## Environment
+
 - OS: [e.g., Windows 10, macOS 12]
 - Python version: [e.g., 3.11]
 - Node.js version: [e.g., 18.0]
 - Browser: [e.g., Chrome 120]
 
 ## Additional Context
+
 - Error messages
 - Screenshots
 - Log files
@@ -239,18 +253,23 @@ What actually happens
 
 ```markdown
 ## Feature Description
+
 Clear description of the proposed feature
 
 ## Use Case
+
 Why is this feature needed? What problem does it solve?
 
 ## Proposed Solution
+
 How should this feature work?
 
 ## Alternatives Considered
+
 What other approaches have you considered?
 
 ## Additional Context
+
 Any additional information or context
 ```
 
@@ -281,21 +300,21 @@ mypy .
 # Good examples
 def process_pdf_document(file_path: str, options: Dict[str, Any]) -> ProcessingResult:
     """Process a PDF document and extract text content.
-    
+
     Args:
         file_path: Path to the PDF file
         options: Processing options dictionary
-        
+
     Returns:
         ProcessingResult containing extracted text and metadata
-        
+
     Raises:
         FileNotFoundError: If the PDF file doesn't exist
         ProcessingError: If PDF processing fails
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"PDF file not found: {file_path}")
-    
+
     try:
         # Processing logic here
         return ProcessingResult(text=extracted_text, metadata=metadata)
@@ -330,16 +349,16 @@ interface PodcastGenerationConfig {
   filename: string;
   podcast: boolean;
   twoSpeakers: boolean;
-  contentStyle?: 'academic' | 'casual' | 'professional';
+  contentStyle?: "academic" | "casual" | "professional";
 }
 
 const generatePodcast = async (
   config: PodcastGenerationConfig
 ): Promise<PodcastResult> => {
   try {
-    const response = await fetch('/api/generate-audio', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/api/generate-audio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(config),
     });
 
@@ -349,7 +368,7 @@ const generatePodcast = async (
 
     return await response.json();
   } catch (error) {
-    console.error('Failed to generate podcast:', error);
+    console.error("Failed to generate podcast:", error);
     throw error;
   }
 };
@@ -371,7 +390,7 @@ def test_process_pdf_success():
     """Test successful PDF processing."""
     # Given
     mock_pdf_path = "test_document.pdf"
-    
+
     # When
     with patch('fitz.open') as mock_open:
         mock_doc = Mock()
@@ -379,9 +398,9 @@ def test_process_pdf_success():
         mock_page.get_text.return_value = "Sample text content"
         mock_doc.__iter__ = Mock(return_value=iter([mock_page]))
         mock_open.return_value = mock_doc
-        
+
         result = process_pdf(mock_pdf_path)
-    
+
     # Then
     assert result.text == "Sample text content"
     assert result.page_count == 1
@@ -398,21 +417,23 @@ We use React Testing Library and Jest:
 
 ```typescript
 // Example test
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { PodcastGenerator } from './PodcastGenerator';
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { PodcastGenerator } from "./PodcastGenerator";
 
-describe('PodcastGenerator', () => {
-  it('should generate podcast when file is selected', async () => {
+describe("PodcastGenerator", () => {
+  it("should generate podcast when file is selected", async () => {
     // Given
     render(<PodcastGenerator />);
-    const fileInput = screen.getByRole('button', { name: /upload/i });
-    const generateButton = screen.getByRole('button', { name: /generate/i });
-    
+    const fileInput = screen.getByRole("button", { name: /upload/i });
+    const generateButton = screen.getByRole("button", { name: /generate/i });
+
     // When
-    const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
+    const file = new File(["test content"], "test.pdf", {
+      type: "application/pdf",
+    });
     fireEvent.change(fileInput, { target: { files: [file] } });
     fireEvent.click(generateButton);
-    
+
     // Then
     await waitFor(() => {
       expect(screen.getByText(/generating/i)).toBeInTheDocument();
@@ -456,15 +477,17 @@ npm run test -- --coverage
 
 ### Writing Documentation
 
-```markdown
+````markdown
 # Good documentation example
 
 ## Feature: Two-Speaker Podcast Generation
 
 ### Overview
+
 This feature generates natural-sounding conversations between two AI hosts discussing PDF content.
 
 ### Usage
+
 ```python
 # Generate a two-speaker podcast
 config = {
@@ -474,13 +497,17 @@ config = {
 }
 result = generate_audio(config)
 ```
+````
 
 ### Implementation Details
+
 The feature uses Google's Gemini AI to create dialogue scripts, then converts them to speech using Edge-TTS.
 
 ### Configuration Options
+
 - `voice_alex`: Voice for the analytical host (default: en-GB-LibbyNeural)
 - `voice_jordan`: Voice for the enthusiastic host (default: en-US-AriaNeural)
+
 ```
 
 ## Release Process
@@ -537,3 +564,4 @@ By contributing to DocaCast, you agree that your contributions will be licensed 
 ---
 
 Thank you for contributing to DocaCast! Your help makes this project better for everyone. 🎙️✨
+```

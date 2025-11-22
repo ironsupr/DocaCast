@@ -9,12 +9,14 @@ This guide provides practical examples of how to use DocaCast for various scenar
 Convert an academic research paper into an engaging two-speaker podcast.
 
 #### Step 1: Upload the Document
+
 ```bash
 curl -X POST "http://127.0.0.1:8001/upload" \
   -F "file=@machine_learning_paper.pdf"
 ```
 
 #### Step 2: Generate Podcast
+
 ```bash
 curl -X POST "http://127.0.0.1:8001/generate-audio" \
   -H "Content-Type: application/json" \
@@ -27,6 +29,7 @@ curl -X POST "http://127.0.0.1:8001/generate-audio" \
 ```
 
 **Expected Output:**
+
 - 15-20 minute conversation between Alex and Jordan
 - Discussion of methodology, findings, and implications
 - Natural interruptions and clarifying questions
@@ -36,16 +39,16 @@ curl -X POST "http://127.0.0.1:8001/generate-audio" \
 Create a quick audio summary of a quarterly business report.
 
 ```javascript
-const response = await fetch('http://127.0.0.1:8001/generate-audio', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+const response = await fetch("http://127.0.0.1:8001/generate-audio", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    filename: 'q4_business_report.pdf',
+    filename: "q4_business_report.pdf",
     podcast: false,
     two_speakers: false,
-    content_style: 'professional',
-    max_duration: 10  // 10 minutes
-  })
+    content_style: "professional",
+    max_duration: 10, // 10 minutes
+  }),
 });
 ```
 
@@ -111,29 +114,29 @@ Use semantic search to create targeted discussions on specific topics.
 
 ```javascript
 // First, search for specific content
-const searchResponse = await fetch('http://127.0.0.1:8001/search', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+const searchResponse = await fetch("http://127.0.0.1:8001/search", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    query: 'artificial intelligence ethics',
-    filename: 'ai_ethics_paper.pdf',
-    top_k: 10
-  })
+    query: "artificial intelligence ethics",
+    filename: "ai_ethics_paper.pdf",
+    top_k: 10,
+  }),
 });
 
 const searchResults = await searchResponse.json();
 
 // Generate focused discussion on search results
-const audioResponse = await fetch('http://127.0.0.1:8001/generate-audio', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+const audioResponse = await fetch("http://127.0.0.1:8001/generate-audio", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    filename: 'ai_ethics_paper.pdf',
+    filename: "ai_ethics_paper.pdf",
     podcast: true,
     two_speakers: true,
-    focus_content: searchResults.results.map(r => r.text),
-    discussion_style: 'debate'
-  })
+    focus_content: searchResults.results.map((r) => r.text),
+    discussion_style: "debate",
+  }),
 });
 ```
 
@@ -172,7 +175,7 @@ tech_config = {
 ### React Component Integration
 
 ```tsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 function PodcastGenerator() {
   const [file, setFile] = useState<File | null>(null);
@@ -183,25 +186,25 @@ function PodcastGenerator() {
     if (!file) return;
 
     setIsGenerating(true);
-    
+
     // Upload file
     const formData = new FormData();
-    formData.append('file', file);
-    
-    await fetch('/upload', {
-      method: 'POST',
-      body: formData
+    formData.append("file", file);
+
+    await fetch("/upload", {
+      method: "POST",
+      body: formData,
     });
 
     // Generate podcast
-    const response = await fetch('/generate-audio', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/generate-audio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         filename: file.name,
         podcast: true,
-        two_speakers: true
-      })
+        two_speakers: true,
+      }),
     });
 
     const result = await response.json();
@@ -211,18 +214,15 @@ function PodcastGenerator() {
 
   return (
     <div>
-      <input 
-        type="file" 
+      <input
+        type="file"
         accept=".pdf"
-        onChange={(e) => setFile(e.target.files?.[0] || null)} 
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
       />
-      <button 
-        onClick={handleGenerate} 
-        disabled={!file || isGenerating}
-      >
-        {isGenerating ? 'Generating...' : 'Create Podcast'}
+      <button onClick={handleGenerate} disabled={!file || isGenerating}>
+        {isGenerating ? "Generating..." : "Create Podcast"}
       </button>
-      
+
       {audioUrl && (
         <audio controls src={audioUrl}>
           Your browser does not support audio playback.
@@ -238,23 +238,16 @@ function PodcastGenerator() {
 ```vue
 <template>
   <div class="podcast-generator">
-    <input 
-      type="file" 
-      @change="handleFileSelect"
-      accept=".pdf"
-    />
-    <button 
-      @click="generatePodcast"
-      :disabled="!selectedFile || isLoading"
-    >
-      {{ isLoading ? 'Generating...' : 'Generate Podcast' }}
+    <input type="file" @change="handleFileSelect" accept=".pdf" />
+    <button @click="generatePodcast" :disabled="!selectedFile || isLoading">
+      {{ isLoading ? "Generating..." : "Generate Podcast" }}
     </button>
-    
+
     <div v-if="podcastData" class="podcast-player">
       <audio :src="podcastData.audio_url" controls></audio>
       <div class="chapters">
-        <div 
-          v-for="chapter in podcastData.chapters" 
+        <div
+          v-for="chapter in podcastData.chapters"
           :key="chapter.index"
           class="chapter"
         >
@@ -271,45 +264,45 @@ export default {
     return {
       selectedFile: null,
       isLoading: false,
-      podcastData: null
+      podcastData: null,
     };
   },
   methods: {
     handleFileSelect(event) {
       this.selectedFile = event.target.files[0];
     },
-    
+
     async generatePodcast() {
       this.isLoading = true;
-      
+
       try {
         // Upload and generate
         const formData = new FormData();
-        formData.append('file', this.selectedFile);
-        
-        await fetch('/upload', {
-          method: 'POST',
-          body: formData
+        formData.append("file", this.selectedFile);
+
+        await fetch("/upload", {
+          method: "POST",
+          body: formData,
         });
 
-        const response = await fetch('/generate-audio', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("/generate-audio", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             filename: this.selectedFile.name,
             podcast: true,
-            two_speakers: true
-          })
+            two_speakers: true,
+          }),
         });
 
         this.podcastData = await response.json();
       } catch (error) {
-        console.error('Error generating podcast:', error);
+        console.error("Error generating podcast:", error);
       } finally {
         this.isLoading = false;
       }
-    }
-  }
+    },
+  },
 };
 </script>
 ```
@@ -323,17 +316,17 @@ export default {
 ```python
 def create_literature_review_podcast(paper_files):
     """Create a podcast reviewing multiple academic papers."""
-    
+
     # Upload all papers
     for paper in paper_files:
         upload_file(paper)
-    
+
     # Get summaries for each paper
     summaries = []
     for paper in paper_files:
         summary = get_document_summary(paper, summary_type='academic')
         summaries.append(summary)
-    
+
     # Generate comparative discussion
     podcast_config = {
         'filenames': paper_files,
@@ -343,7 +336,7 @@ def create_literature_review_podcast(paper_files):
         'include_comparisons': True,
         'max_duration': 60  # 1 hour
     }
-    
+
     return generate_podcast(podcast_config)
 
 # Example usage
@@ -366,21 +359,21 @@ class BusinessReportProcessor {
     this.apiUrl = apiBaseUrl;
   }
 
-  async createExecutiveBriefing(reportFile, urgencyLevel = 'normal') {
+  async createExecutiveBriefing(reportFile, urgencyLevel = "normal") {
     const config = {
       filename: reportFile,
-      podcast: false,  // Single narrator for efficiency
+      podcast: false, // Single narrator for efficiency
       two_speakers: false,
-      content_style: 'executive_summary',
-      max_duration: urgencyLevel === 'urgent' ? 5 : 10,
+      content_style: "executive_summary",
+      max_duration: urgencyLevel === "urgent" ? 5 : 10,
       include_action_items: true,
-      include_key_metrics: true
+      include_key_metrics: true,
     };
 
     const response = await fetch(`${this.apiUrl}/generate-audio`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config)
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
     });
 
     return await response.json();
@@ -388,10 +381,10 @@ class BusinessReportProcessor {
 }
 
 // Usage
-const processor = new BusinessReportProcessor('http://127.0.0.1:8001');
+const processor = new BusinessReportProcessor("http://127.0.0.1:8001");
 const briefing = await processor.createExecutiveBriefing(
-  'quarterly_financial_report.pdf', 
-  'urgent'
+  "quarterly_financial_report.pdf",
+  "urgent"
 );
 ```
 
@@ -403,13 +396,13 @@ const briefing = await processor.createExecutiveBriefing(
 class EducationalPodcastCreator:
     def __init__(self, api_base_url):
         self.api_url = api_base_url
-    
+
     def create_lesson_podcast(self, textbook_chapter, grade_level, subject):
         """Create age-appropriate educational podcast."""
-        
+
         # Age-appropriate voice selection
         voice_config = self._get_voice_config(grade_level)
-        
+
         config = {
             'filename': textbook_chapter,
             'podcast': True,
@@ -421,9 +414,9 @@ class EducationalPodcastCreator:
             'include_quiz_questions': True,
             **voice_config
         }
-        
+
         return self._generate_educational_content(config)
-    
+
     def _get_voice_config(self, grade_level):
         if grade_level <= 5:  # Elementary
             return {
@@ -468,10 +461,10 @@ OUTPUT_DIR="./generated_podcasts"
 for pdf in "$INPUT_DIR"/*.pdf; do
     filename=$(basename "$pdf")
     echo "Processing $filename..."
-    
+
     # Upload file
     curl -X POST "$API_URL/upload" -F "file=@$pdf"
-    
+
     # Generate podcast
     curl -X POST "$API_URL/generate-audio" \
       -H "Content-Type: application/json" \
@@ -481,7 +474,7 @@ for pdf in "$INPUT_DIR"/*.pdf; do
         \"two_speakers\": true
       }" \
       -o "$OUTPUT_DIR/${filename%.*}_podcast.json"
-    
+
     echo "Completed $filename"
 done
 ```
@@ -496,22 +489,22 @@ from pathlib import Path
 
 def batch_process_documents(input_dir, output_dir, config=None):
     """Batch process all PDFs in a directory."""
-    
+
     default_config = {
         'podcast': True,
         'two_speakers': True,
         'content_style': 'conversational'
     }
-    
+
     config = {**default_config, **(config or {})}
-    
+
     input_path = Path(input_dir)
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
-    
+
     for pdf_file in input_path.glob('*.pdf'):
         print(f"Processing {pdf_file.name}...")
-        
+
         try:
             # Upload file
             with open(pdf_file, 'rb') as f:
@@ -520,7 +513,7 @@ def batch_process_documents(input_dir, output_dir, config=None):
                     files={'file': f}
                 )
             upload_response.raise_for_status()
-            
+
             # Generate podcast
             generation_config = {**config, 'filename': pdf_file.name}
             audio_response = requests.post(
@@ -528,15 +521,15 @@ def batch_process_documents(input_dir, output_dir, config=None):
                 json=generation_config
             )
             audio_response.raise_for_status()
-            
+
             # Save metadata
             result = audio_response.json()
             metadata_file = output_path / f"{pdf_file.stem}_metadata.json"
             with open(metadata_file, 'w') as f:
                 json.dump(result, f, indent=2)
-            
+
             print(f"✓ Completed {pdf_file.name}")
-            
+
         except Exception as e:
             print(f"✗ Failed to process {pdf_file.name}: {e}")
 
@@ -560,15 +553,15 @@ from typing import Optional
 class DocaCastClient:
     def __init__(self, api_url: str):
         self.api_url = api_url.rstrip('/')
-    
+
     def generate_podcast_with_retry(
-        self, 
-        filename: str, 
+        self,
+        filename: str,
         max_retries: int = 3,
         backoff_factor: float = 1.5
     ) -> Optional[dict]:
         """Generate podcast with retry logic and error handling."""
-        
+
         for attempt in range(max_retries):
             try:
                 response = requests.post(
@@ -580,7 +573,7 @@ class DocaCastClient:
                     },
                     timeout=300  # 5 minute timeout
                 )
-                
+
                 if response.status_code == 200:
                     return response.json()
                 elif response.status_code == 429:  # Rate limited
@@ -593,7 +586,7 @@ class DocaCastClient:
                     return None
                 else:
                     response.raise_for_status()
-                    
+
             except requests.exceptions.Timeout:
                 print(f"Timeout on attempt {attempt + 1}")
                 if attempt < max_retries - 1:
@@ -602,7 +595,7 @@ class DocaCastClient:
                 else:
                     print("Max retries exceeded")
                     return None
-                    
+
             except requests.exceptions.RequestException as e:
                 print(f"Request failed: {e}")
                 if attempt < max_retries - 1:
@@ -610,7 +603,7 @@ class DocaCastClient:
                     continue
                 else:
                     return None
-        
+
         return None
 
 # Usage
@@ -634,7 +627,7 @@ import aiofiles
 
 async def async_generate_podcast(session, filename, config):
     """Async podcast generation."""
-    
+
     async with session.post(
         'http://127.0.0.1:8001/generate-audio',
         json={'filename': filename, **config}
@@ -643,17 +636,17 @@ async def async_generate_podcast(session, filename, config):
 
 async def process_multiple_documents(documents, config):
     """Process multiple documents concurrently."""
-    
+
     async with aiohttp.ClientSession() as session:
         tasks = [
             async_generate_podcast(session, doc, config)
             for doc in documents
         ]
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         return [
-            result for result in results 
+            result for result in results
             if not isinstance(result, Exception)
         ]
 

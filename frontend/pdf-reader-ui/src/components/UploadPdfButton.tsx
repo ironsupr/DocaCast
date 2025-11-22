@@ -17,10 +17,24 @@ export default function UploadPdfButton({ onUploaded }: Props) {
     for (const f of Array.from(files)) form.append('files', f)
     try {
       const api = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')
+      
+      // Step 1: Upload files
       const res = await axios.post(`${api}/upload`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       const filenames: string[] = res.data?.saved ?? []
+      
+      // Step 2: Process each file (add to vector store)
+      for (const filename of filenames) {
+        try {
+          await axios.post(`${api}/process`, null, {
+            params: { filename }
+          })
+        } catch (err) {
+          console.warn(`Processing ${filename} failed:`, err)
+        }
+      }
+      
       onUploaded?.(filenames)
     } catch (err) {
       console.error('Upload failed', err)
