@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "name": "docacast-frontend",
+  "buildCommand": "cd frontend/pdf-reader-ui && npm install && npm run build",
+  "outputDirectory": "frontend/pdf-reader-ui/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
