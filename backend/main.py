@@ -213,18 +213,28 @@ def _file_signature(filename: str) -> str:
     except Exception:
         return f"{filename}:na"
 
-# CORS for frontend dev server
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
+# CORS for frontend - allow both local dev and production
+# Get allowed origins from environment or use defaults
+allowed_origins = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
-    ],
+    "https://doca-cast.vercel.app",
+    "https://*.vercel.app",  # Allow all Vercel preview deployments
+]
+
+# Add wildcard for production if needed
+if os.getenv("ENVIRONMENT") == "production":
+    allowed_origins.append("*")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins if os.getenv("ENVIRONMENT") != "production" else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Serve uploaded PDFs statically so the frontend can preview them
