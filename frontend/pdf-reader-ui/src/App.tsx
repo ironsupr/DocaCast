@@ -2,17 +2,16 @@ import React from 'react'
 import axios from 'axios'
 import UploadPdfButton from './components/UploadPdfButton'
 import GenerateAudioButton from './components/GenerateAudioButton'
+import PodcastStudio from './components/PodcastStudio'
 import RecommendationsSidebar, { type Recommendation } from './components/RecommendationsSidebar'
 import FilePicker from './components/FilePicker'
-import PodcastStudio from './components/PodcastStudio'
 
-// Enhanced meta strip for podcast details with modern design
+// Clean, flat meta strip for podcast details
 function PodcastMetaStrip({ meta }: { meta: { url: string; parts?: any[]; chapters?: any[] } }) {
   const chapters = Array.isArray(meta.chapters) ? meta.chapters : []
   const speakers = Array.from(new Set(chapters.map((c: any) => (c.speaker || '').toString().trim()).filter(Boolean)))
-  const parts = Array.isArray(meta.parts) ? meta.parts : []
   
-  // Calculate duration from chapters
+  // Calculate duration
   let totalMs: number | null = null
   for (let i = chapters.length - 1; i >= 0; i--) {
     const c = chapters[i]
@@ -32,70 +31,35 @@ function PodcastMetaStrip({ meta }: { meta: { url: string; parts?: any[]; chapte
     <div style={{ 
       display: 'flex', 
       alignItems: 'center', 
-      gap: 12, 
-      padding: '8px 12px', 
-      border: '1px solid #e5e7eb', 
-      borderRadius: 10, 
-      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+      gap: 16, 
+      padding: '12px 16px', 
+      border: '1px solid #e2e8f0', 
+      borderRadius: 8, 
+      background: '#f8fafc',
+      fontSize: 13,
+      color: '#64748b'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <div style={{ 
-          width: 20, 
-          height: 20, 
-          borderRadius: 4, 
-          display: 'grid', 
-          placeItems: 'center', 
-          background: '#3b82f6', 
-          color: '#fff',
-          fontSize: 10,
-          fontWeight: 600
-        }}>⏱</div>
-        <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{fmt(totalMs)}</span>
+        <span style={{ fontWeight: 600, color: '#334155' }}>Duration:</span>
+        <span>{fmt(totalMs)}</span>
       </div>
       
-      <div style={{ width: 1, height: 18, background: '#d1d5db' }} />
+      <div style={{ width: 1, height: 16, background: '#cbd5e1' }} />
       
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        {speakers.length > 0 ? speakers.map((s, i) => (
-          <div key={`${s}-${i}`} style={{ 
-            fontSize: 11, 
-            fontWeight: 500,
-            padding: '3px 8px', 
-            borderRadius: 999, 
-            background: i % 2 === 0 ? '#dbeafe' : '#ede9fe', 
-            color: '#374151',
-            border: '1px solid ' + (i % 2 === 0 ? '#93c5fd' : '#c4b5fd')
-          }}>{s}</div>
-        )) : (
-          <div style={{ 
-            fontSize: 11, 
-            fontWeight: 500,
-            padding: '3px 8px', 
-            borderRadius: 999, 
-            background: '#f3f4f6', 
-            color: '#6b7280',
-            border: '1px solid #d1d5db'
-          }}>Two Speakers</div>
-        )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontWeight: 600, color: '#334155' }}>Speakers:</span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {speakers.length > 0 ? speakers.map((s, i) => (
+            <span key={i} style={{ 
+              background: '#e2e8f0', 
+              padding: '2px 8px', 
+              borderRadius: 4, 
+              fontSize: 12,
+              color: '#475569'
+            }}>{s}</span>
+          )) : <span>2 Speakers</span>}
+        </div>
       </div>
-      
-      {parts.length > 0 && (
-        <>
-          <div style={{ width: 1, height: 18, background: '#d1d5db' }} />
-          <div style={{ 
-            fontSize: 11, 
-            fontWeight: 500,
-            color: '#6b7280',
-            padding: '3px 8px',
-            borderRadius: 999,
-            background: '#f9fafb',
-            border: '1px solid #e5e7eb'
-          }}>
-            {parts.length} Part{parts.length > 1 ? 's' : ''}
-          </div>
-        </>
-      )}
     </div>
   )
 }
@@ -560,9 +524,7 @@ export default function App() {
           <div style={{ 
             flex: 1, 
             minHeight: 0,
-            border: '2px solid #e2e8f0',
-            borderRadius: '12px 12px 0 0',
-            margin: '8px 8px 4px 8px',
+            borderBottom: '1px solid #e2e8f0',
             background: '#ffffff',
             display: 'flex',
             flexDirection: 'column',
@@ -571,8 +533,7 @@ export default function App() {
             <div style={{
               padding: '12px 16px',
               borderBottom: '1px solid #f1f5f9',
-              background: 'linear-gradient(135deg, #fefefe 0%, #f8fafc 100%)',
-              borderRadius: '10px 10px 0 0'
+              background: '#f8fafc',
             }}>
               <h3 style={{ 
                 margin: 0, 
@@ -607,69 +568,42 @@ export default function App() {
           <div style={{
             flex: 1,
             minHeight: 0,
-            border: '2px solid #e2e8f0',
-            borderRadius: '0 0 12px 12px',
-            margin: '4px 8px 8px 8px',
             background: '#ffffff',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden'
           }}>
-            {/* Modern Header */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between', 
-              padding: '12px 16px', 
-              gap: 12,
+            <div style={{
+              padding: '12px 16px',
               borderBottom: '1px solid #f1f5f9',
-              background: 'linear-gradient(135deg, #fefefe 0%, #f8fafc 100%)',
-              borderRadius: '10px 10px 0 0'
+              background: '#f8fafc',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                <div style={{ 
-                  width: 32, 
-                  height: 32, 
-                  borderRadius: 10, 
-                  display: 'grid', 
-                  placeItems: 'center', 
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-                  color: '#fff',
-                  fontSize: 16,
-                  boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)'
-                }}>🎙️</div>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <div style={{ 
-                    fontWeight: 700, 
-                    fontSize: 15, 
-                    color: '#111827', 
-                    lineHeight: 1.2,
-                    letterSpacing: '-0.025em'
-                  }}>Podcast Studio</div>
-                  <div style={{ 
-                    fontSize: 12, 
-                    color: '#6b7280', 
-                    whiteSpace: 'nowrap', 
-                    textOverflow: 'ellipsis', 
-                    overflow: 'hidden',
-                    fontWeight: 400
-                  }}>
-                    {podcastReady ? 'AI-generated conversation' : 'Transform content into dialogue'}
-                  </div>
-                </div>
-              </div>
-              
+              <h3 style={{ 
+                margin: 0, 
+                fontSize: 14, 
+                fontWeight: 700, 
+                color: '#374151',
+                letterSpacing: '-0.025em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <span>🎙️</span> Podcast Studio
+              </h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {podcastReady && (
-                  <div style={{
-                    padding: '4px 8px',
-                    borderRadius: 999,
-                    background: '#dcfce7',
-                    border: '1px solid #16a34a',
+                  <span style={{
                     fontSize: 11,
                     fontWeight: 600,
-                    color: '#15803d'
-                  }}>Ready</div>
+                    color: '#16a34a',
+                    background: '#dcfce7',
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    border: '1px solid #bbf7d0'
+                  }}>Ready</span>
                 )}
                 <GenerateAudioButton
                   getContext={async () => {
@@ -689,83 +623,34 @@ export default function App() {
               </div>
             </div>
 
-            {/* Body with improved layout and scrolling */}
             <div style={{ 
+              flex: 1, 
+              overflow: 'auto', 
               padding: 16, 
               display: 'flex', 
-              flexDirection: 'column', 
-              gap: 12, 
-              flex: 1, 
-              minHeight: 0,
-              background: '#fafafa',
-              overflow: 'auto'
+              flexDirection: 'column',
+              gap: 16
             }}>
-              {!podcastMeta && (
+              {!podcastMeta ? (
                 <div style={{ 
                   flex: 1, 
-                  display: 'grid', 
-                  placeItems: 'center', 
-                  textAlign: 'center',
-                  padding: '20px 16px'
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: '#94a3b8',
+                  textAlign: 'center'
                 }}>
-                  <div style={{
-                    background: '#ffffff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 16,
-                    padding: '32px 24px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
-                    maxWidth: 280
-                  }}>
-                    <div style={{ 
-                      fontSize: 48, 
-                      marginBottom: 16,
-                      filter: 'grayscale(0.2)'
-                    }}>🎧</div>
-                    <div style={{ 
-                      fontSize: 16, 
-                      fontWeight: 600,
-                      color: '#111827',
-                      marginBottom: 8,
-                      lineHeight: 1.4
-                    }}>Create Your Podcast</div>
-                    <div style={{ 
-                      fontSize: 13, 
-                      color: '#6b7280', 
-                      marginBottom: 20,
-                      lineHeight: 1.5
-                    }}>
-                      Generate an AI conversation between two speakers from your selected content or current page.
-                    </div>
-                    <div style={{
-                      fontSize: 12,
-                      color: '#9ca3af',
-                      fontStyle: 'italic'
-                    }}>
-                      Use the "🎙️ Narrate" button above to get started
-                    </div>
-                  </div>
+                  <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>🎧</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>Generate a podcast to get started</p>
                 </div>
-              )}
-
-              {podcastMeta && (
-                <div style={{
-                  background: '#ffffff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minHeight: 0
-                }}>
-                  <div style={{ padding: 12, borderBottom: '1px solid #f1f5f9' }}>
-                    <PodcastMetaStrip meta={podcastMeta} />
-                  </div>
-                  <div style={{ flex: 1, minHeight: 0, padding: 12 }}>
+              ) : (
+                <>
+                  <PodcastMetaStrip meta={podcastMeta} />
+                  <div style={{ flex: 1, minHeight: 0 }}>
                     <PodcastStudio meta={podcastMeta} />
                   </div>
-                </div>
+                </>
               )}
             </div>
           </div>

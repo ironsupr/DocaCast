@@ -1,28 +1,11 @@
 import React from 'react'
-
-// Add keyframe animations
-const pulseKeyframes = `
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-`
+import './PodcastStudio.css'
 
 type Props = {
 	meta: { url: string; parts?: string[]; chapters?: Array<{ index: number; speaker: string; text: string; start_ms?: number; end_ms?: number; part_url?: string }> }
 }
 
 export default function PodcastStudio({ meta }: Props) {
-	// Add CSS animations to document head
-	React.useEffect(() => {
-		const style = document.createElement('style')
-		style.textContent = pulseKeyframes
-		document.head.appendChild(style)
-		return () => {
-			document.head.removeChild(style)
-		}
-	}, [])
-
 	const audioRef = React.useRef<HTMLAudioElement | null>(null)
 	const api = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001').replace(/\/$/, '')
 	const mergedSrc = meta.url.startsWith('http') ? meta.url : `${api}${meta.url}`
@@ -281,56 +264,14 @@ export default function PodcastStudio({ meta }: Props) {
 		}, [playPause, gotoPrev, gotoNext])
 
 	return (
-		<div style={{ 
-			display: 'flex', 
-			flexDirection: 'column', 
-			gap: 0, 
-			minHeight: 0, 
-			height: '100%',
-			background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-			borderRadius: 16,
-			overflow: 'hidden',
-			boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
-		}}>
+		<div className="podcast-studio-container">
 			{/* Modern Header */}
-			<div style={{
-				background: 'rgba(255,255,255,0.1)',
-				backdropFilter: 'blur(10px)',
-				padding: '16px 24px',
-				borderBottom: '1px solid rgba(255,255,255,0.2)',
-				display: 'flex',
-				alignItems: 'center',
-				justifyContent: 'space-between'
-			}}>
-				<div style={{
-					display: 'flex',
-					alignItems: 'center',
-					gap: 12
-				}}>
-					<div style={{
-						width: 40,
-						height: 40,
-						borderRadius: '50%',
-						background: 'linear-gradient(45deg, #ff6b6b, #feca57)',
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
-						fontSize: 18
-					}}>🎧</div>
-					<div>
-						<h2 style={{
-							margin: 0,
-							fontSize: 18,
-							fontWeight: 700,
-							color: '#fff',
-							letterSpacing: '-0.025em'
-						}}>Podcast Studio</h2>
-						<p style={{
-							margin: 0,
-							fontSize: 12,
-							color: 'rgba(255,255,255,0.8)',
-							fontWeight: 500
-						}}>AI-Generated Content Player</p>
+			<div className="podcast-header">
+				<div className="podcast-header-content">
+					<div className="podcast-icon">🎧</div>
+					<div className="podcast-title">
+						<h2>Podcast Studio</h2>
+						<p>AI-Generated Content Player</p>
 					</div>
 				</div>
 				
@@ -338,18 +279,7 @@ export default function PodcastStudio({ meta }: Props) {
 					<button
 						onClick={() => setIsMinimized(!isMinimized)}
 						title={isMinimized ? 'Expand' : 'Minimize'}
-						style={{
-							background: 'rgba(255,255,255,0.2)',
-							border: 'none',
-							borderRadius: 8,
-							padding: '8px 12px',
-							color: '#fff',
-							cursor: 'pointer',
-							fontSize: 12,
-							fontWeight: 600,
-							backdropFilter: 'blur(10px)',
-							transition: 'all 0.2s ease'
-						}}
+						className="minimize-btn"
 					>
 						{isMinimized ? '↗️' : '↙️'}
 					</button>
@@ -360,57 +290,19 @@ export default function PodcastStudio({ meta }: Props) {
 				<>
 					{/* Live Subtitle Display */}
 					{showSubtitles && currentSubtitle && (
-						<div style={{
-							background: 'rgba(0,0,0,0.8)',
-							backdropFilter: 'blur(10px)',
-							margin: '16px 24px',
-							padding: '16px 20px',
-							borderRadius: 12,
-							border: '1px solid rgba(255,255,255,0.1)',
-							position: 'relative',
-							overflow: 'hidden'
-						}}>
-							<div style={{
-								position: 'absolute',
-								top: 0,
-								left: 0,
-								right: 0,
-								height: 2,
-								background: 'linear-gradient(90deg, #ff6b6b, #4ecdc4)',
-								borderRadius: '2px 2px 0 0'
-							}} />
-							<div style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: 12,
-								marginBottom: 8
-							}}>
-								<div style={{
-									fontSize: 10,
-									fontWeight: 700,
-									color: '#4ecdc4',
-									textTransform: 'uppercase',
-									letterSpacing: '0.1em'
-								}}>LIVE SUBTITLE</div>
-								<div style={{
-									padding: '2px 8px',
-									background: 'rgba(78, 205, 196, 0.2)',
-									borderRadius: 12,
-									fontSize: 10,
-									fontWeight: 600,
-									color: '#4ecdc4',
-									textTransform: 'capitalize'
-								}}>
+						<div className="live-subtitle">
+							<div className="live-indicator-bar" />
+							<div className="subtitle-header">
+								<div className="live-badge">
+									<div className="live-dot" />
+									LIVE SUBTITLE
+								</div>
+								<div className="speaker-badge">
 									{currentSubtitle.speaker}
 								</div>
 							</div>
-							<div style={{
-								fontSize: subtitleSize === 'small' ? 14 : subtitleSize === 'large' ? 18 : 16,
-								lineHeight: 1.6,
-								color: '#fff',
-								fontWeight: 500,
-								fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto',
-								textShadow: '0 1px 2px rgba(0,0,0,0.5)'
+							<div className="subtitle-text" style={{
+								fontSize: subtitleSize === 'small' ? 14 : subtitleSize === 'large' ? 18 : 16
 							}}>
 								{currentSubtitle.text}
 							</div>
@@ -418,57 +310,20 @@ export default function PodcastStudio({ meta }: Props) {
 					)}
 
 					{/* Main Player Controls */}
-					<div style={{
-						background: 'rgba(255,255,255,0.95)',
-						backdropFilter: 'blur(10px)',
-						margin: '0 24px 16px',
-						padding: '20px 24px',
-						borderRadius: 16,
-						boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-						border: '1px solid rgba(255,255,255,0.2)'
-					}}>
+					<div className="player-controls">
 						{/* Progress Bar */}
-						<div style={{ marginBottom: 20 }}>
-							<div style={{
-								display: 'flex',
-								justifyContent: 'space-between',
-								alignItems: 'center',
-								marginBottom: 8
-							}}>
-								<span style={{
-									fontSize: 12,
-									fontWeight: 600,
-									color: '#6b7280',
-									fontVariantNumeric: 'tabular-nums'
-								}}>{fmt(currentTime)}</span>
-								<span style={{
-									fontSize: 12,
-									fontWeight: 600,
-									color: '#6b7280',
-									fontVariantNumeric: 'tabular-nums'
-								}}>{fmt(duration)}</span>
+						<div className="progress-container">
+							<div className="time-labels">
+								<span>{fmt(currentTime)}</span>
+								<span>{fmt(duration)}</span>
 							</div>
-							<div style={{
-								position: 'relative',
-								height: 8,
-								background: '#e5e7eb',
-								borderRadius: 4,
-								overflow: 'hidden',
-								cursor: 'pointer'
-							}} onClick={(e) => {
+							<div className="progress-bar-wrapper" onClick={(e) => {
 								const rect = e.currentTarget.getBoundingClientRect()
 								const pos = (e.clientX - rect.left) / rect.width
 								seek(pos * duration)
 							}}>
-								<div style={{
-									position: 'absolute',
-									top: 0,
-									left: 0,
-									height: '100%',
-									width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-									background: 'linear-gradient(90deg, #667eea, #764ba2)',
-									borderRadius: 4,
-									transition: 'width 0.1s ease'
+								<div className="progress-fill" style={{
+									width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`
 								}} />
 								{/* Chapter markers */}
 								{chapters.map((c, i) => {
@@ -477,16 +332,8 @@ export default function PodcastStudio({ meta }: Props) {
 									return (
 										<div
 											key={i}
-											style={{
-												position: 'absolute',
-												top: -2,
-												left: `${pos}%`,
-												width: 2,
-												height: 12,
-												background: '#ff6b6b',
-												borderRadius: 1,
-												transform: 'translateX(-50%)'
-											}}
+											className="chapter-marker"
+											style={{ left: `${pos}%` }}
 										/>
 									)
 								})}
@@ -494,90 +341,23 @@ export default function PodcastStudio({ meta }: Props) {
 						</div>
 
 						{/* Transport Controls */}
-						<div style={{
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
-							gap: 16,
-							marginBottom: 16
-						}}>
+						<div className="transport-controls">
 							<button 
 								onClick={gotoPrev} 
 								title="Previous chapter"
-								style={{
-									width: 44,
-									height: 44,
-									borderRadius: '50%',
-									border: 'none',
-									background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)',
-									cursor: 'pointer',
-									fontSize: 16,
-									color: '#374151',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-									transition: 'all 0.2s ease'
-								}}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.transform = 'scale(1.1)'
-									e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.2)'
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.transform = 'scale(1)'
-									e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'
-								}}
+								className="control-btn secondary"
 							>⏮</button>
 							
 							<button 
 								onClick={() => skip(-15)} 
 								title="Back 15s"
-								style={{
-									width: 40,
-									height: 40,
-									borderRadius: '50%',
-									border: 'none',
-									background: 'rgba(107, 114, 128, 0.1)',
-									cursor: 'pointer',
-									fontSize: 12,
-									fontWeight: 600,
-									color: '#6b7280',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									transition: 'all 0.2s ease'
-								}}
+								className="control-btn secondary"
 							>-15</button>
 							
 							<button 
 								onClick={playPause} 
 								title={playing ? 'Pause' : 'Play'}
-								style={{
-									width: 64,
-									height: 64,
-									borderRadius: '50%',
-									border: 'none',
-									background: playing ? 
-										'linear-gradient(135deg, #ef4444, #dc2626)' : 
-										'linear-gradient(135deg, #10b981, #059669)',
-									cursor: 'pointer',
-									fontSize: 24,
-									color: '#fff',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									boxShadow: '0 8px 25px rgba(59, 130, 246, 0.4)',
-									transition: 'all 0.3s ease',
-									transform: playing ? 'scale(1.05)' : 'scale(1)'
-								}}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.transform = playing ? 'scale(1.1)' : 'scale(1.05)'
-									e.currentTarget.style.boxShadow = '0 10px 30px rgba(59, 130, 246, 0.5)'
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.transform = playing ? 'scale(1.05)' : 'scale(1)'
-									e.currentTarget.style.boxShadow = '0 8px 25px rgba(59, 130, 246, 0.4)'
-								}}
+								className="play-btn"
 							>
 								{playing ? '⏸️' : '▶️'}
 							</button>
@@ -585,73 +365,24 @@ export default function PodcastStudio({ meta }: Props) {
 							<button 
 								onClick={() => skip(15)} 
 								title="Forward 15s"
-								style={{
-									width: 40,
-									height: 40,
-									borderRadius: '50%',
-									border: 'none',
-									background: 'rgba(107, 114, 128, 0.1)',
-									cursor: 'pointer',
-									fontSize: 12,
-									fontWeight: 600,
-									color: '#6b7280',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									transition: 'all 0.2s ease'
-								}}
+								className="control-btn secondary"
 							>+15</button>
 							
 							<button 
 								onClick={gotoNext} 
 								title="Next chapter"
-								style={{
-									width: 44,
-									height: 44,
-									borderRadius: '50%',
-									border: 'none',
-									background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)',
-									cursor: 'pointer',
-									fontSize: 16,
-									color: '#374151',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-									transition: 'all 0.2s ease'
-								}}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.transform = 'scale(1.1)'
-									e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.2)'
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.transform = 'scale(1)'
-									e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'
-								}}
+								className="control-btn secondary"
 							>⏭</button>
 						</div>
 
 						{/* Secondary Controls */}
-						<div style={{
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'space-between',
-							gap: 16
-						}}>
-							<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-								<span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280' }}>Speed:</span>
+						<div className="secondary-controls">
+							<div className="control-group">
+								<span className="control-label">Speed:</span>
 								<select
 									value={String(playbackRate)}
 									onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
-									style={{
-										fontSize: 12,
-										fontWeight: 600,
-										border: '1px solid #d1d5db',
-										borderRadius: 8,
-										padding: '6px 8px',
-										background: '#fff',
-										cursor: 'pointer'
-									}}
+									className="styled-select"
 								>
 									<option value="0.75">0.75×</option>
 									<option value="1">1×</option>
@@ -661,8 +392,8 @@ export default function PodcastStudio({ meta }: Props) {
 								</select>
 							</div>
 							
-							<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-								<span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280' }}>Volume:</span>
+							<div className="control-group">
+								<span className="control-label">Volume:</span>
 								<input
 									type="range"
 									min={0}
@@ -674,32 +405,15 @@ export default function PodcastStudio({ meta }: Props) {
 										setVolume(vol)
 										if (audioRef.current) audioRef.current.volume = vol
 									}}
-									style={{
-										width: 80,
-										height: 4,
-										borderRadius: 2,
-										background: '#e5e7eb',
-										outline: 'none',
-										cursor: 'pointer'
-									}}
+									className="volume-slider"
 								/>
 							</div>
 							
-							<div style={{ display: 'flex', gap: 8 }}>
+							<div className="control-group">
 								<button
 									onClick={() => setShowSubtitles(!showSubtitles)}
 									title="Toggle subtitles"
-									style={{
-										padding: '6px 12px',
-										borderRadius: 8,
-										border: '1px solid #d1d5db',
-										background: showSubtitles ? '#3b82f6' : '#fff',
-										color: showSubtitles ? '#fff' : '#374151',
-										cursor: 'pointer',
-										fontSize: 12,
-										fontWeight: 600,
-										transition: 'all 0.2s ease'
-									}}
+									className={`action-btn ${showSubtitles ? 'active' : ''}`}
 								>📝</button>
 								
 								<a 
@@ -707,17 +421,7 @@ export default function PodcastStudio({ meta }: Props) {
 									target="_blank" 
 									rel="noreferrer" 
 									title="Download audio"
-									style={{
-										padding: '6px 12px',
-										borderRadius: 8,
-										border: '1px solid #d1d5db',
-										background: '#f9fafb',
-										color: '#374151',
-										textDecoration: 'none',
-										fontSize: 12,
-										fontWeight: 600,
-										transition: 'all 0.2s ease'
-									}}
+									className="action-btn"
 								>⬇️</a>
 							</div>
 						</div>
@@ -726,42 +430,25 @@ export default function PodcastStudio({ meta }: Props) {
 					{/* Subtitle Settings */}
 					{showSubtitles && (
 						<div style={{
-							background: 'rgba(255,255,255,0.9)',
-							backdropFilter: 'blur(10px)',
-							margin: '0 24px 16px',
-							padding: '16px 20px',
+							background: '#f8fafc',
+							margin: '0 32px 16px',
+							padding: '12px 20px',
 							borderRadius: 12,
-							border: '1px solid rgba(255,255,255,0.2)'
+							border: '1px solid #e2e8f0',
+							display: 'flex',
+							justifyContent: 'flex-end'
 						}}>
-							<div style={{
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'space-between'
-							}}>
-								<span style={{
-									fontSize: 13,
-									fontWeight: 700,
-									color: '#374151'
-								}}>Subtitle Settings</span>
-								
-								<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-									<span style={{ fontSize: 12, color: '#6b7280' }}>Size:</span>
-									<select
-										value={subtitleSize}
-										onChange={(e) => setSubtitleSize(e.target.value as 'small' | 'medium' | 'large')}
-										style={{
-											fontSize: 12,
-											padding: '4px 8px',
-											border: '1px solid #d1d5db',
-											borderRadius: 6,
-											background: '#fff'
-										}}
-									>
-										<option value="small">Small</option>
-										<option value="medium">Medium</option>
-										<option value="large">Large</option>
-									</select>
-								</div>
+							<div className="control-group">
+								<span className="control-label">Size:</span>
+								<select
+									value={subtitleSize}
+									onChange={(e) => setSubtitleSize(e.target.value as 'small' | 'medium' | 'large')}
+									className="styled-select"
+								>
+									<option value="small">Small</option>
+									<option value="medium">Medium</option>
+									<option value="large">Large</option>
+								</select>
 							</div>
 						</div>
 					)}
@@ -772,18 +459,16 @@ export default function PodcastStudio({ meta }: Props) {
 					{/* Error Display */}
 					{errorMsg && (
 						<div style={{
-							margin: '0 24px 16px',
+							margin: '0 32px 16px',
 							padding: '16px 20px',
 							borderRadius: 12,
 							border: '1px solid #fecaca',
 							background: 'rgba(254, 242, 242, 0.95)',
-							backdropFilter: 'blur(10px)',
 							color: '#991b1b',
 							fontSize: 13,
 							display: 'flex',
 							alignItems: 'center',
-							gap: 12,
-							flexWrap: 'wrap'
+							gap: 12
 						}}>
 							<span style={{ fontWeight: 600 }}>⚠️ {errorMsg}</span>
 							<a href={currentSrc} target="_blank" rel="noreferrer" style={{ 
@@ -796,162 +481,61 @@ export default function PodcastStudio({ meta }: Props) {
 
 					{/* Enhanced Transcript & Chapters */}
 					{chapters.length > 0 && (
-						<div style={{
-							background: 'rgba(255,255,255,0.95)',
-							backdropFilter: 'blur(10px)',
-							margin: '0 24px 24px',
-							borderRadius: 16,
-							overflow: 'hidden',
-							boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-							border: '1px solid rgba(255,255,255,0.2)',
-							flex: 1,
-							display: 'flex',
-							flexDirection: 'column'
-						}}>
+						<div className="transcript-container">
 							{/* Transcript Header */}
-							<div style={{
-								padding: '20px 24px',
-								borderBottom: '1px solid #e5e7eb',
-								background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)'
-							}}>
-								<div style={{
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'space-between',
-									marginBottom: 12
-								}}>
-									<div style={{
-										display: 'flex',
-										alignItems: 'center',
-										gap: 12
-									}}>
-										<div style={{
-											width: 32,
-											height: 32,
-											borderRadius: '50%',
-											background: 'linear-gradient(45deg, #4ecdc4, #44a08d)',
-											display: 'flex',
-											alignItems: 'center',
-											justifyContent: 'center',
-											fontSize: 14
-										}}>📄</div>
-										<div>
-											<h3 style={{
-												margin: 0,
-												fontSize: 16,
-												fontWeight: 700,
-												color: '#374151',
-												letterSpacing: '-0.025em'
-											}}>Interactive Transcript</h3>
-											<p style={{
-												margin: 0,
-												fontSize: 12,
-												color: '#6b7280',
-												fontWeight: 500
-											}}>{chapters.length} chapters • Click to jump to section</p>
-										</div>
-									</div>
-									
-									<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-										<button
-											onClick={() => setShowTranscript(!showTranscript)}
-											style={{
-												padding: '6px 12px',
-												borderRadius: 8,
-												border: '1px solid #d1d5db',
-												background: showTranscript ? '#3b82f6' : '#fff',
-												color: showTranscript ? '#fff' : '#374151',
-												cursor: 'pointer',
-												fontSize: 12,
-												fontWeight: 600,
-												transition: 'all 0.2s ease'
-											}}
-										>
-											{showTranscript ? 'Hide' : 'Show'}
-										</button>
-										
-										{showTranscript && (
-											<>
-												<select
-													value={transcriptMode}
-													onChange={(e) => setTranscriptMode(e.target.value as 'chapters' | 'fullText')}
-													style={{
-														fontSize: 12,
-														fontWeight: 600,
-														padding: '6px 8px',
-														border: '1px solid #d1d5db',
-														borderRadius: 8,
-														background: '#fff',
-														cursor: 'pointer'
-													}}
-												>
-													<option value="chapters">Chapters</option>
-													<option value="fullText">Full Text</option>
-												</select>
-												
-												<button
-													onClick={() => {
-														const transcript = generateFullTranscript()
-														navigator.clipboard.writeText(transcript).catch(() => {
-															const textArea = document.createElement('textarea')
-															textArea.value = transcript
-															document.body.appendChild(textArea)
-															textArea.select()
-															document.execCommand('copy')
-															document.body.removeChild(textArea)
-														})
-													}}
-													title="Copy transcript"
-													style={{
-														padding: '6px 12px',
-														borderRadius: 8,
-														border: '1px solid #d1d5db',
-														background: '#fff',
-														color: '#374151',
-														cursor: 'pointer',
-														fontSize: 12,
-														fontWeight: 600,
-														transition: 'all 0.2s ease'
-													}}
-												>
-													📋
-												</button>
-											</>
-										)}
-									</div>
+							<div className="transcript-header">
+								<div className="transcript-title">
+									<h3>Interactive Transcript</h3>
+									<p>{chapters.length} chapters • Click to jump to section</p>
 								</div>
 								
-								{activeChapter !== null && (
-									<div style={{
-										display: 'flex',
-										alignItems: 'center',
-										gap: 8,
-										padding: '8px 12px',
-										background: 'rgba(16, 185, 129, 0.1)',
-										borderRadius: 8,
-										border: '1px solid rgba(16, 185, 129, 0.2)'
-									}}>
-										<div style={{
-											width: 8,
-											height: 8,
-											borderRadius: '50%',
-											background: '#10b981',
-											animation: 'pulse 2s infinite'
-										}} />
-										<span style={{
-											fontSize: 12,
-											fontWeight: 600,
-											color: '#059669'
-										}}>
-											Now playing: Chapter {activeChapter + 1}
-										</span>
-									</div>
-								)}
+								<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+									<button
+										onClick={() => setShowTranscript(!showTranscript)}
+										className={`action-btn ${showTranscript ? 'active' : ''}`}
+										style={{ color: '#64748b', background: showTranscript ? '#eff6ff' : '#fff', borderColor: '#e2e8f0' }}
+									>
+										{showTranscript ? 'Hide' : 'Show'}
+									</button>
+									
+									{showTranscript && (
+										<>
+											<select
+												value={transcriptMode}
+												onChange={(e) => setTranscriptMode(e.target.value as 'chapters' | 'fullText')}
+												className="styled-select"
+												style={{ color: '#334155', background: '#fff', borderColor: '#e2e8f0' }}
+											>
+												<option value="chapters">Chapters</option>
+												<option value="fullText">Full Text</option>
+											</select>
+											
+											<button
+												onClick={() => {
+													const transcript = generateFullTranscript()
+													navigator.clipboard.writeText(transcript).catch(() => {
+														const textArea = document.createElement('textarea')
+														textArea.value = transcript
+														document.body.appendChild(textArea)
+														textArea.select()
+														document.execCommand('copy')
+														document.body.removeChild(textArea)
+													})
+												}}
+												title="Copy transcript"
+												className="action-btn"
+												style={{ color: '#64748b', background: '#fff', borderColor: '#e2e8f0' }}
+											>
+												📋
+											</button>
+										</>
+									)}
+								</div>
 							</div>
 
 							{/* Transcript Content */}
 							{showTranscript && (
-								<div style={{ flex: 1, overflow: 'auto' }}>
+								<div className="transcript-content">
 									{transcriptMode === 'fullText' ? (
 										<div style={{
 											padding: '24px',
@@ -988,156 +572,48 @@ export default function PodcastStudio({ meta }: Props) {
 													<div 
 														key={c.index}
 														ref={active ? activeChapterRef : null}
-														style={{ 
-															margin: '8px 24px',
-															padding: '20px',
-															background: active ? 
-																'linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(16, 185, 129, 0.05))' : 
-																'#fff',
-															border: active ? 
-																'2px solid #3b82f6' : 
-																'1px solid #e5e7eb',
-															borderRadius: 16,
-															cursor: 'pointer',
-															transition: 'all 0.3s ease',
-															position: 'relative',
-															overflow: 'hidden'
-														}}
+														className={`chapter-item ${active ? 'active' : ''}`}
 														onClick={() => playChapter(c, i)}
-														onMouseEnter={(e) => {
-															if (!active) {
-																e.currentTarget.style.transform = 'translateY(-2px)'
-																e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.1)'
-															}
-														}}
-														onMouseLeave={(e) => {
-															if (!active) {
-																e.currentTarget.style.transform = 'translateY(0)'
-																e.currentTarget.style.boxShadow = 'none'
-															}
-														}}
 													>
-														{active && (
-															<div style={{
-																position: 'absolute',
-																top: 0,
-																left: 0,
-																right: 0,
-																height: 3,
-																background: 'linear-gradient(90deg, #3b82f6, #10b981)',
-																borderRadius: '16px 16px 0 0'
-															}} />
-														)}
-														
-														<div style={{
-															display: 'flex',
-															alignItems: 'flex-start',
-															gap: 16
-														}}>
-															<div style={{
-																display: 'flex',
-																flexDirection: 'column',
-																alignItems: 'center',
-																gap: 8,
-																minWidth: 80
+														<div className="chapter-header">
+															<div className="chapter-time">
+																{typeof c.start_ms === 'number' ? 
+																	`${Math.floor(c.start_ms/1000/60)}:${String(Math.floor(c.start_ms/1000)%60).padStart(2,'0')}` : 
+																	'--:--'
+																}
+															</div>
+															<div className="chapter-speaker" style={{
+																background: colors.bg,
+																color: colors.text
 															}}>
-																<div style={{
-																	fontSize: 11,
-																	fontWeight: 700,
-																	fontVariantNumeric: 'tabular-nums',
-																	color: active ? '#3b82f6' : '#6b7280',
-																	padding: '4px 8px',
-																	background: active ? 'rgba(59, 130, 246, 0.1)' : 'rgba(107, 114, 128, 0.1)',
-																	borderRadius: 6
-																}}>
-																	{typeof c.start_ms === 'number' ? 
+																{badge}
+															</div>
+														</div>
+														
+														<div className="chapter-text">
+															{c.text}
+														</div>
+														
+														<div className="chapter-actions">
+															<button
+																onClick={(e) => {
+																	e.stopPropagation()
+																	const chapterText = `[${typeof c.start_ms === 'number' ? 
 																		`${Math.floor(c.start_ms/1000/60)}:${String(Math.floor(c.start_ms/1000)%60).padStart(2,'0')}` : 
 																		'--:--'
-																	}
-																</div>
-																
-																<div style={{
-																	padding: '6px 12px',
-																	borderRadius: 20,
-																	background: colors.bg,
-																	border: `2px solid ${colors.border}`,
-																	fontSize: 11,
-																	fontWeight: 700,
-																	color: colors.text,
-																	textAlign: 'center',
-																	textTransform: 'capitalize',
-																	letterSpacing: '0.025em',
-																	minWidth: 70
-																}}>
-																	{badge}
-																</div>
-															</div>
+																	}] ${badge}: ${c.text}`
+																	navigator.clipboard.writeText(chapterText).catch(() => {})
+																}}
+																title="Copy chapter"
+																className="chapter-action-btn"
+															>📋</button>
 															
-															<div style={{
-																flex: 1,
-																fontSize: 14,
-																lineHeight: 1.7,
-																color: active ? '#1f2937' : '#374151',
-																fontWeight: active ? 500 : 400
+															<div className="chapter-action-btn" style={{
+																background: active && playing ? '#ef4444' : '#10b981',
+																color: '#fff',
+																borderColor: 'transparent'
 															}}>
-																{c.text}
-															</div>
-															
-															<div style={{
-																display: 'flex',
-																alignItems: 'center',
-																gap: 8,
-																opacity: active ? 1 : 0.6
-															}}>
-																<button
-																	onClick={(e) => {
-																		e.stopPropagation()
-																		const chapterText = `[${typeof c.start_ms === 'number' ? 
-																			`${Math.floor(c.start_ms/1000/60)}:${String(Math.floor(c.start_ms/1000)%60).padStart(2,'0')}` : 
-																			'--:--'
-																		}] ${badge}: ${c.text}`
-																		navigator.clipboard.writeText(chapterText).catch(() => {
-																			const textArea = document.createElement('textarea')
-																			textArea.value = chapterText
-																			document.body.appendChild(textArea)
-																			textArea.select()
-																			document.execCommand('copy')
-																			document.body.removeChild(textArea)
-																		})
-																	}}
-																	title="Copy chapter"
-																	style={{
-																		width: 32,
-																		height: 32,
-																		borderRadius: '50%',
-																		border: '1px solid #d1d5db',
-																		background: '#fff',
-																		cursor: 'pointer',
-																		fontSize: 12,
-																		color: '#6b7280',
-																		display: 'flex',
-																		alignItems: 'center',
-																		justifyContent: 'center',
-																		transition: 'all 0.2s ease'
-																	}}
-																>📋</button>
-																
-																<div style={{
-																	width: 32,
-																	height: 32,
-																	borderRadius: '50%',
-																	background: active && playing ? 
-																		'linear-gradient(135deg, #ef4444, #dc2626)' : 
-																		'linear-gradient(135deg, #10b981, #059669)',
-																	display: 'flex',
-																	alignItems: 'center',
-																	justifyContent: 'center',
-																	fontSize: 12,
-																	color: '#fff',
-																	fontWeight: 600
-																}}>
-																	{active && playing ? '⏸️' : '▶️'}
-																</div>
+																{active && playing ? '⏸️' : '▶️'}
 															</div>
 														</div>
 													</div>
@@ -1152,31 +628,10 @@ export default function PodcastStudio({ meta }: Props) {
 
 					{/* No Chapters Message */}
 					{chapters.length === 0 && (
-						<div style={{
-							background: 'rgba(255,255,255,0.9)',
-							backdropFilter: 'blur(10px)',
-							margin: '0 24px 24px',
-							padding: '40px 24px',
-							borderRadius: 16,
-							border: '1px solid rgba(255,255,255,0.2)',
-							textAlign: 'center'
-						}}>
-							<div style={{
-								fontSize: 48,
-								marginBottom: 16
-							}}>🎙️</div>
-							<h3 style={{
-								margin: 0,
-								fontSize: 16,
-								fontWeight: 600,
-								color: '#6b7280',
-								marginBottom: 8
-							}}>No Chapters Available</h3>
-							<p style={{
-								margin: 0,
-								fontSize: 14,
-								color: '#9ca3af'
-							}}>Generate a podcast to see interactive chapters and subtitles</p>
+						<div className="empty-state">
+							<div className="empty-icon">🎙️</div>
+							<h3>No Chapters Available</h3>
+							<p>Generate a podcast to see interactive chapters and subtitles</p>
 						</div>
 					)}
 				</>
