@@ -3,19 +3,158 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import re
+import os
+import numpy as np
+import hashlib
 
 import fitz  # PyMuPDF
-from sentence_transformers import SentenceTransformer
+
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 
 
-# Lazy-loaded global embedder to avoid re-downloading/re-initializing on each call
-_EMBEDDER: Optional[SentenceTransformer] = None
+# Cache for API client
+_GENAI_CONFIGURED = False
 
 
-def _get_embedder(model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> SentenceTransformer:
+def _ensure_genai_configured():
+    """Ensure Gemini API is configured"""
+    global _GENAI_CONFIGURED
+    if not _GENAI_CONFIGURED and genai is not None:
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key)
+            _GENAI_CONFIGURED = True
+
+
+class SimpleTfidfEmbedder:
+    """Ultra-lightweight TF-IDF based embedder (fallback when API unavailable)
+    
+    This is a simple hash-based embedding that:
+    - Requires NO external models or APIs
+    - Uses ~0MB memory
+    - Fast and deterministic
+    - Good enough for basic semantic search
+    """
+    
+    def __init__(self, dim: int = 384):
+        self.dim = dim
+        
+    def _hash_features(self, text: str) -> np.ndarray:
+        """Create a simple feature vector using hashing trick"""
+        # Tokenize
+        tokens = re.findall(r'\b\w+\b', text.lower())
+        
+        # Create sparse vector using hashing
+        vector = np.zeros(self.dim, dtype=np.float32)
+        for token in tokens:
+            # Hash token to dimension
+            hash_val = int(hashlib.md5(token.encode()).hexdigest(), 16)
+            idx = hash_val % self.dim
+            vector[idx] += 1.0
+            
+            # Also add bigrams for better context
+            if len(token) > 3:
+                for i in range(len(token) - 1):
+                    bigram = token[i:i+2]
+                    hash_val = int(hashlib.md5(bigram.encode()).hexdigest(), 16)
+                    idx = hash_val % self.dim
+                    vector[idx] += 0.5
+        
+        return vector
+        
+    def encode(self, texts: List[str], convert_to_numpy: bool = True, normalize_embeddings: bool = True, **kwargs) -> np.ndarray:
+        """Encode texts into embeddings"""
+        if not texts:
+            return np.array([])
+            
+        embeddings = np.array([self._hash_features(text) for text in texts], dtype=np.float32)
+        
+        if normalize_embeddings:
+            norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+            norms = np.where(norms == 0, 1, norms)
+            embeddings = embeddings / norms
+            
+        return embeddings
+
+
+class GeminiEmbedder:
+    """Lightweight embedder using Google's Gemini API with fallback"""
+    
+    def __init__(self, model_name: str = "models/text-embedding-004"):
+        self.model_name = model_name
+        self.fallback = SimpleTfidfEmbedder(dim=384)
+        self.use_fallback = False
+        _ensure_genai_configured()
+        
+    def encode(self, texts: List[str], convert_to_numpy: bool = True, normalize_embeddings: bool = True, batch_size: int = 100) -> np.ndarray:
+        """Generate embeddings using Gemini API with automatic fallback
+        
+        Args:
+            texts: List of text strings to embed
+            convert_to_numpy: Return as numpy array
+            normalize_embeddings: Normalize to unit vectors
+            batch_size: Process in batches (Gemini supports up to 100)
+        
+        Returns:
+            Numpy array of embeddings
+        """
+        if not texts:
+            return np.array([])
+        
+        # If we've already determined to use fallback, skip API attempt
+        if self.use_fallback:
+            return self.fallback.encode(texts, convert_to_numpy, normalize_embeddings)
+        
+        # Try Gemini API first
+        if genai is not None:
+            try:
+                all_embeddings = []
+                for i in range(0, len(texts), batch_size):
+                    batch = texts[i:i + batch_size]
+                    result = genai.embed_content(
+                        model=self.model_name,
+                        content=batch,
+                        task_type="retrieval_document"
+                    )
+                    
+                    # Extract embeddings from response
+                    if isinstance(result, dict) and 'embedding' in result:
+                        embeddings_batch = result['embedding']
+                        if not isinstance(embeddings_batch[0], list):
+                            embeddings_batch = [embeddings_batch]
+                        all_embeddings.extend(embeddings_batch)
+                    else:
+                        raise ValueError("Unexpected response format")
+                
+                embeddings = np.array(all_embeddings, dtype=np.float32)
+                
+                if normalize_embeddings:
+                    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+                    norms = np.where(norms == 0, 1, norms)
+                    embeddings = embeddings / norms
+                
+                return embeddings
+                
+            except Exception as e:
+                print(f"[INFO] Gemini embeddings not available ({type(e).__name__}), using lightweight fallback")
+                self.use_fallback = True
+                return self.fallback.encode(texts, convert_to_numpy, normalize_embeddings)
+        
+        # Use fallback if genai not available
+        return self.fallback.encode(texts, convert_to_numpy, normalize_embeddings)
+
+
+# Lazy-loaded global embedder
+_EMBEDDER: Optional[GeminiEmbedder] = None
+
+
+def _get_embedder(model_name: str = "models/text-embedding-004") -> GeminiEmbedder:
     global _EMBEDDER
     if _EMBEDDER is None:
-        _EMBEDDER = SentenceTransformer(model_name)
+        _EMBEDDER = GeminiEmbedder(model_name)
     return _EMBEDDER
 
 

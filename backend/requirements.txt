@@ -6,7 +6,6 @@ pydantic
 
 # PDF and text processing
 PyMuPDF
-sentence-transformers
 numpy
 faiss-cpu
 

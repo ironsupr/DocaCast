@@ -792,45 +792,65 @@ export default function App() {
               <button onClick={() => setShowInsights(false)} style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer' }}>✖</button>
             </div>
 
-            {insightsLoading && <div>Analyzing…</div>}
-            {insightsError && <div style={{ color: '#b91c1c' }}>Error: {insightsError}</div>}
+            {insightsLoading && <div style={{ padding: 12, textAlign: 'center', color: '#6b7280' }}>🔍 Analyzing content...</div>}
+            {insightsError && <div style={{ padding: 12, color: '#b91c1c', background: '#fef2f2', borderRadius: 8, border: '1px solid #fca5a5' }}>❌ Error: {insightsError}</div>}
 
             {insightsData && (
               <div style={{ display: 'grid', gap: 12 }}>
-                <section>
-                  <h3 style={{ margin: '8px 0' }}>Key insights</h3>
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {insightsData.key_insights?.map((s, i) => <li key={`ins-${i}`}>{s}</li>)}
-                  </ul>
-                </section>
-                <section>
-                  <h3 style={{ margin: '8px 0' }}>Did you know?</h3>
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {insightsData.did_you_know_facts?.map((s, i) => <li key={`fact-${i}`}>{s}</li>)}
-                  </ul>
-                </section>
-                <section>
-                  <h3 style={{ margin: '8px 0' }}>Counterpoints</h3>
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {insightsData.counterpoints?.map((s, i) => <li key={`con-${i}`}>{s}</li>)}
-                  </ul>
-                </section>
-                <section>
-                  <h3 style={{ margin: '8px 0' }}>Inspirations</h3>
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {insightsData.inspirations?.map((s, i) => <li key={`insp-${i}`}>{s}</li>)}
-                  </ul>
-                </section>
-                <section>
-                  <h3 style={{ margin: '8px 0' }}>Examples</h3>
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {insightsData.examples?.map((s, i) => <li key={`ex-${i}`}>{s}</li>)}
-                  </ul>
-                </section>
+                {(!insightsData.key_insights || insightsData.key_insights.length === 0) && 
+                 (!insightsData.did_you_know_facts || insightsData.did_you_know_facts.length === 0) && 
+                 (!insightsData.counterpoints || insightsData.counterpoints.length === 0) && 
+                 (!insightsData.inspirations || insightsData.inspirations.length === 0) && 
+                 (!insightsData.examples || insightsData.examples.length === 0) && (
+                  <div style={{ padding: 20, textAlign: 'center', color: '#6b7280', background: '#f9fafb', borderRadius: 8 }}>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>🤔</div>
+                    <div>No insights generated. The content may be too short or lack sufficient context.</div>
+                  </div>
+                )}
+                {insightsData.key_insights && insightsData.key_insights.length > 0 && (
+                  <section>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Key Insights</h3>
+                    <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                      {insightsData.key_insights.map((s, i) => <li key={`ins-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
+                    </ul>
+                  </section>
+                )}
+                {insightsData.did_you_know_facts && insightsData.did_you_know_facts.length > 0 && (
+                  <section>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Did You Know?</h3>
+                    <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                      {insightsData.did_you_know_facts.map((s, i) => <li key={`fact-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
+                    </ul>
+                  </section>
+                )}
+                {insightsData.counterpoints && insightsData.counterpoints.length > 0 && (
+                  <section>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Counterpoints</h3>
+                    <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                      {insightsData.counterpoints.map((s, i) => <li key={`con-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
+                    </ul>
+                  </section>
+                )}
+                {insightsData.inspirations && insightsData.inspirations.length > 0 && (
+                  <section>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Inspirations</h3>
+                    <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                      {insightsData.inspirations.map((s, i) => <li key={`insp-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
+                    </ul>
+                  </section>
+                )}
+                {insightsData.examples && insightsData.examples.length > 0 && (
+                  <section>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Examples</h3>
+                    <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                      {insightsData.examples.map((s, i) => <li key={`ex-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
+                    </ul>
+                  </section>
+                )}
                 {insightsData.citations && insightsData.citations.length > 0 && (
                   <section>
-                    <h3 style={{ margin: '8px 0' }}>Citations</h3>
-                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Citations</h3>
+                    <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
                       {insightsData.citations.map((c, i) => (
                         <li key={`cit-${i}`}>
                           <button

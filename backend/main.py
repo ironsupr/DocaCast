@@ -590,14 +590,15 @@ def _extract_page_text(file_path: str, page_number: int) -> str:
 def _gemini_insights(text: str, citations: Optional[List[Dict[str, Any]]] = None, web_results: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     if genai is None:
         raise HTTPException(status_code=500, detail="google-generativeai not installed on server")
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=503, detail="GOOGLE_API_KEY not configured on server")
+        raise HTTPException(status_code=503, detail="GOOGLE_API_KEY or GEMINI_API_KEY not configured on server")
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
         model_name="gemini-1.5-flash",
         generation_config={
-            "response_mime_type": "application/json"
+            "response_mime_type": "application/json",
+            "temperature": 0.7
         }
     )
     cites_str = "\n".join([
@@ -628,19 +629,34 @@ External Web Context (optional):
 """
     try:
         resp = model.generate_content(prompt)
+        print(f"[DEBUG] Gemini response type: {type(resp)}")
+        print(f"[DEBUG] Has text attr: {hasattr(resp, 'text')}")
+        
         raw = (getattr(resp, "text", None) or "").strip()
+        print(f"[DEBUG] Gemini response raw text length: {len(raw)}")
+        if raw:
+            print(f"[DEBUG] Gemini response preview: {raw[:300]}...")
+        else:
+            print(f"[ERROR] Empty response from Gemini")
+            
         # In JSON mode, raw should be JSON; still guard parsing
         data = json.loads(raw) if raw else {}
         if not isinstance(data, dict):
+            print(f"[WARNING] Response is not a dict: {type(data)}")
             data = {}
-        return {
+        result = {
             "key_insights": data.get("key_insights", []),
             "did_you_know_facts": data.get("did_you_know_facts", []),
             "counterpoints": data.get("counterpoints", []),
             "inspirations": data.get("inspirations", []),
             "examples": data.get("examples", []),
         }
-    except Exception:  # pragma: no cover
+        print(f"[DEBUG] Parsed insights: key={len(result['key_insights'])}, facts={len(result['did_you_know_facts'])}, examples={len(result['examples'])}")
+        return result
+    except Exception as e:  # pragma: no cover
+        print(f"[ERROR] Gemini insights failed: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return {"key_insights": [], "did_you_know_facts": [], "counterpoints": [], "inspirations": [], "examples": []}
 
 
