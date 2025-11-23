@@ -588,75 +588,201 @@ def _extract_page_text(file_path: str, page_number: int) -> str:
 
 
 def _gemini_insights(text: str, citations: Optional[List[Dict[str, Any]]] = None, web_results: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Generate insights from text using Gemini API with robust error handling and fallback."""
     if genai is None:
         raise HTTPException(status_code=500, detail="google-generativeai not installed on server")
+    
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="GOOGLE_API_KEY or GEMINI_API_KEY not configured on server")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config={
-            "response_mime_type": "application/json",
-            "temperature": 0.7
-        }
-    )
-    cites_str = "\n".join([
-        f"[CITATION {i+1}] file={c.get('filename')} page={c.get('page_number')}: {c.get('snippet')}"
-        for i, c in enumerate(citations or [])
-    ])
-    web_str = "\n".join([
-        f"[WEB {i+1}] title={w.get('title','')} url={w.get('url','')}: {w.get('snippet','')}"
-        for i, w in enumerate(web_results or [])
-    ])
-    prompt = f"""
-You are an assistant extracting structured insights from a document passage and optional retrieved references.
-Return a single JSON object with EXACTLY these keys (no extra keys):
-- "key_insights": array of 3-7 concise takeaways (short, actionable).
-- "did_you_know_facts": array of factual nuggets supported by the text.
-- "counterpoints": array of potential caveats, risks, or alternative views (empty if none).
-- "inspirations": array of ideas, applications, or next steps the reader could try.
-- "examples": array of 3-6 illustrative examples that clarify the content; each example should be 1-3 sentences.
-
-Primary Context:
-{text}
-
-Retrieved References (optional):
-{cites_str or 'None'}
-
-External Web Context (optional):
-{web_str or 'None'}
-"""
+    
+    # Check for placeholder keys
+    if "your_" in api_key.lower() or "_here" in api_key.lower() or len(api_key) < 20:
+        raise HTTPException(
+            status_code=503, 
+            detail="Invalid API key detected. Please set a valid GOOGLE_API_KEY or GEMINI_API_KEY in your .env file. Get your key from https://aistudio.google.com/app/apikey"
+        )
+    
     try:
-        resp = model.generate_content(prompt)
-        print(f"[DEBUG] Gemini response type: {type(resp)}")
-        print(f"[DEBUG] Has text attr: {hasattr(resp, 'text')}")
+        genai.configure(api_key=api_key)
         
-        raw = (getattr(resp, "text", None) or "").strip()
-        print(f"[DEBUG] Gemini response raw text length: {len(raw)}")
-        if raw:
-            print(f"[DEBUG] Gemini response preview: {raw[:300]}...")
-        else:
-            print(f"[ERROR] Empty response from Gemini")
+        # Build context from citations
+        context_parts = [f"MAIN TEXT:\n{text[:2000]}"]
+        
+        if citations:
+            cite_text = "\n\nRELATED DOCUMENTS:\n"
+            for i, c in enumerate(citations[:3]):
+                cite_text += f"{i+1}. From {c.get('filename', 'unknown')} (page {c.get('page_number', '?')}): {c.get('snippet', '')[:300]}\n"
+            context_parts.append(cite_text)
+        
+        full_context = "\n".join(context_parts)
+        
+        # Use a simpler, more direct prompt without JSON mode first
+        prompt = f"""Analyze this text and provide insights in the following categories:
+
+{full_context}
+
+Please provide:
+1. KEY INSIGHTS (3-5 main takeaways)
+2. DID YOU KNOW FACTS (2-4 interesting facts)
+3. EXAMPLES (2-3 concrete examples that illustrate the concepts)
+4. COUNTERPOINTS (1-2 alternative perspectives or limitations, if any)
+5. INSPIRATIONS (1-2 actionable ideas or applications)
+
+Format your response as valid JSON with these exact keys: "key_insights", "did_you_know_facts", "examples", "counterpoints", "inspirations"
+Each value should be an array of strings. Be specific and concrete."""
+
+        # Try with JSON mode first
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            generation_config={
+                "response_mime_type": "application/json",
+                "temperature": 0.8,
+                "top_p": 0.95,
+            }
+        )
+        
+        print(f"[DEBUG] Sending request to Gemini (text length: {len(text)})")
+        resp = model.generate_content(prompt)
+        
+        # Handle response
+        if hasattr(resp, 'text') and resp.text:
+            raw_text = resp.text.strip()
+            print(f"[DEBUG] Received response (length: {len(raw_text)})")
+            print(f"[DEBUG] Response preview: {raw_text[:200]}")
             
-        # In JSON mode, raw should be JSON; still guard parsing
-        data = json.loads(raw) if raw else {}
-        if not isinstance(data, dict):
-            print(f"[WARNING] Response is not a dict: {type(data)}")
-            data = {}
-        result = {
-            "key_insights": data.get("key_insights", []),
-            "did_you_know_facts": data.get("did_you_know_facts", []),
-            "counterpoints": data.get("counterpoints", []),
-            "inspirations": data.get("inspirations", []),
-            "examples": data.get("examples", []),
+            try:
+                data = json.loads(raw_text)
+                print(f"[DEBUG] Successfully parsed JSON")
+            except json.JSONDecodeError as e:
+                print(f"[ERROR] JSON parse error: {e}")
+                print(f"[DEBUG] Attempting to extract JSON from response...")
+                
+                # Try to find JSON in the response
+                import re
+                json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                if json_match:
+                    try:
+                        data = json.loads(json_match.group())
+                        print(f"[DEBUG] Extracted and parsed JSON successfully")
+                    except:
+                        data = {}
+                else:
+                    data = {}
+            
+            # Validate and normalize response
+            result = {
+                "key_insights": [],
+                "did_you_know_facts": [],
+                "counterpoints": [],
+                "inspirations": [],
+                "examples": [],
+            }
+            
+            if isinstance(data, dict):
+                # Map various possible key names to our expected format
+                key_mappings = {
+                    "key_insights": ["key_insights", "keyInsights", "insights", "main_insights"],
+                    "did_you_know_facts": ["did_you_know_facts", "didYouKnowFacts", "facts", "interesting_facts"],
+                    "examples": ["examples", "Examples"],
+                    "counterpoints": ["counterpoints", "Counterpoints", "limitations", "caveats"],
+                    "inspirations": ["inspirations", "Inspirations", "ideas", "applications"],
+                }
+                
+                for target_key, possible_keys in key_mappings.items():
+                    for key in possible_keys:
+                        if key in data and isinstance(data[key], list):
+                            result[target_key] = [str(item) for item in data[key] if item]
+                            break
+            
+            print(f"[DEBUG] Final counts - insights:{len(result['key_insights'])}, facts:{len(result['did_you_know_facts'])}, examples:{len(result['examples'])}")
+            
+            # If all arrays are empty, try without JSON mode
+            if not any(result.values()):
+                print(f"[WARNING] Empty result, retrying without JSON mode...")
+                return _gemini_insights_fallback(text, citations)
+            
+            return result
+        else:
+            print(f"[ERROR] No text in Gemini response")
+            return _gemini_insights_fallback(text, citations)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_str = str(e).lower()
+        # Check for API key errors
+        if 'api_key_invalid' in error_str or 'api key not valid' in error_str or '400' in error_str:
+            raise HTTPException(
+                status_code=503,
+                detail="Invalid or expired API key. Please set a valid GOOGLE_API_KEY or GEMINI_API_KEY in your .env file. Get your key from https://aistudio.google.com/app/apikey"
+            )
+        elif 'quota' in error_str or '429' in error_str:
+            raise HTTPException(status_code=429, detail="API quota exceeded. Please try again later.")
+        else:
+            print(f"[ERROR] Gemini insights failed: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Error generating insights: {str(e)}")
+
+
+def _gemini_insights_fallback(text: str, citations: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Fallback method without JSON mode - parse text response manually."""
+    try:
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY"))
+        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+        
+        prompt = f"""Analyze this text and provide insights:
+
+{text[:2000]}
+
+Provide 3-5 key insights, 2-3 interesting facts, and 2-3 concrete examples. Format as bullet points."""
+
+        resp = model.generate_content(prompt)
+        raw = resp.text if hasattr(resp, 'text') else ""
+        
+        print(f"[DEBUG FALLBACK] Response: {raw[:300]}")
+        
+        # Parse bullet points into structured data
+        lines = raw.split('\n')
+        insights = []
+        facts = []
+        examples = []
+        
+        current_section = None
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            lower = line.lower()
+            if 'insight' in lower or 'takeaway' in lower:
+                current_section = 'insights'
+            elif 'fact' in lower or 'did you know' in lower:
+                current_section = 'facts'
+            elif 'example' in lower:
+                current_section = 'examples'
+            elif line.startswith(('-', '*', '•', '1.', '2.', '3.', '4.', '5.')):
+                content = line.lstrip('-*•123456789. ').strip()
+                if content and len(content) > 10:
+                    if current_section == 'insights':
+                        insights.append(content)
+                    elif current_section == 'facts':
+                        facts.append(content)
+                    elif current_section == 'examples':
+                        examples.append(content)
+                    else:
+                        insights.append(content)
+        
+        return {
+            "key_insights": insights[:5] if insights else [f"Main topic: {text[:100]}..."],
+            "did_you_know_facts": facts[:3] if facts else [],
+            "examples": examples[:3] if examples else [],
+            "counterpoints": [],
+            "inspirations": [],
         }
-        print(f"[DEBUG] Parsed insights: key={len(result['key_insights'])}, facts={len(result['did_you_know_facts'])}, examples={len(result['examples'])}")
-        return result
-    except Exception as e:  # pragma: no cover
-        print(f"[ERROR] Gemini insights failed: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception as e:
+        print(f"[ERROR FALLBACK] {e}")
         return {"key_insights": [], "did_you_know_facts": [], "counterpoints": [], "inspirations": [], "examples": []}
 
 
@@ -898,7 +1024,7 @@ def _extract_doc_claims(filename: str, max_per_doc: int = 6, deep: bool = False)
     try:
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-2.5-flash",
             generation_config={"response_mime_type": "application/json"}
         )
         sec_text = []
@@ -958,7 +1084,7 @@ def _gemini_cross_compare(doc_claims: List[Dict[str, Any]], focus: Optional[str]
         return {"agreements": [], "contradictions": [], "notes": []}
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-2.5-flash",
         generation_config={"response_mime_type": "application/json"}
     )
 
@@ -992,7 +1118,7 @@ Return a single JSON object with these top-level keys ONLY:
 
 Each item in agreements/contradictions MUST have:
 - "statement": concise sentence.
-- "support": array of objects like {"file": string, "page_number": number}
+- "support": array of objects like {{"file": "string", "page_number": 0}}
 - "quotes": array of 1-3 short quotes (<=120 chars) drawn from the supporting refs.
 
 If no clear items exist, return empty arrays for "agreements" and "contradictions".
@@ -1018,83 +1144,99 @@ References:
 
 
 @app.post("/cross-insights")
-async def cross_insights(req: CrossInsightsRequest):
+async def cross_insights(request: CrossInsightsRequest):
     """Compare uploaded PDFs to find supporting and contradicting points.
-    If req.filenames is not provided, all PDFs in document_library are used.
+    If request.filenames is not provided, all PDFs in document_library are used.
     Returns agreements and contradictions with references back to files/pages.
     """
-    # Determine files to analyze
-    if req.filenames:
-        files = [f for f in req.filenames if (_docs_dir / f).is_file() and f.lower().endswith(".pdf")]
-    else:
-        try:
-            files = [p.name for p in _docs_dir.iterdir() if p.is_file() and p.suffix.lower() == ".pdf"]
-        except Exception:
-            files = []
-    files.sort()
-    if len(files) < 2:
-        raise HTTPException(status_code=400, detail="At least two PDFs are required for cross-insights")
+    print(f"cross_insights called with request={request}")
+    try:
+        # Determine files to analyze
+        if request.filenames:
+            files = [f for f in request.filenames if (_docs_dir / f).is_file() and f.lower().endswith(".pdf")]
+        else:
+            try:
+                files = [p.name for p in _docs_dir.iterdir() if p.is_file() and p.suffix.lower() == ".pdf"]
+            except Exception:
+                files = []
+        files.sort()
+        if len(files) < 2:
+            raise HTTPException(status_code=400, detail="At least two PDFs are required for cross-insights")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error determining files: {str(e)}")
 
     # Collect claims with simple per-file caching based on (mtime,size)
     all_claims: List[Dict[str, Any]] = []
     cache_key_parts = []
     loop = asyncio.get_running_loop()
     tasks = []
-    for f in files:
-        sig = _file_signature(f) + ("|deep" if req.deep else "|fast")
-        cache_key_parts.append(sig)
-        if (not req.force) and (sig in _doc_claims_cache):
-            # Use cached directly
-            all_claims.extend(_doc_claims_cache[sig])
-            continue
-        # Offload extraction to background thread
-        def _job(file=f, signature=sig):
-            c = _extract_doc_claims(file, max_per_doc=max(2, req.max_per_doc), deep=bool(req.deep))
-            _doc_claims_cache[signature] = c
-            return c
-        tasks.append(loop.run_in_executor(_bg_executor, _job))
-
-    if tasks:
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results:
-            if isinstance(r, Exception):
+    
+    try:
+        for f in files:
+            sig = _file_signature(f) + ("|deep" if request.deep else "|fast")
+            cache_key_parts.append(sig)
+            if (not request.force) and (sig in _doc_claims_cache):
+                # Use cached directly
+                all_claims.extend(_doc_claims_cache[sig])
                 continue
-            all_claims.extend(r or [])
+            # Offload extraction to background thread
+            def _job(file=f, signature=sig):
+                c = _extract_doc_claims(file, max_per_doc=max(2, request.max_per_doc), deep=bool(request.deep))
+                _doc_claims_cache[signature] = c
+                return c
+            tasks.append(loop.run_in_executor(_bg_executor, _job))
 
-    if not all_claims:
-        return {"agreements": [], "contradictions": [], "notes": []}
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, Exception):
+                    print(f"Task exception in cross_insights: {type(r).__name__}: {r}")
+                    import traceback
+                    traceback.print_exception(type(r), r, r.__traceback__)
+                    continue
+                all_claims.extend(r or [])
 
-    cross_key = _hash_short("|".join(cache_key_parts) + f"|m{req.max_per_doc}|deep{1 if req.deep else 0}|focus{(req.focus or '').strip().lower()}")
-    cached = _cross_insights_cache.get(cross_key)
-    if (not req.force) and (cached is not None):
-        return cached
+        if not all_claims:
+            return {"agreements": [], "contradictions": [], "notes": []}
 
-    result = _gemini_cross_compare(all_claims, focus=req.focus)
-    # Heuristic retry: if both arrays empty but we have many claims, try once more with a narrowed focus built from frequent terms
-    if not result.get("agreements") and not result.get("contradictions") and len(all_claims) >= 4:
-        try:
-            # Build a crude focus from top words across claims/snippets
-            text_blobs = []
-            for c in all_claims[:10]:
-                if c.get("statement"):
-                    text_blobs.append(str(c.get("statement")))
-                elif c.get("snippet"):
-                    text_blobs.append(str(c.get("snippet"))[:200])
-            blob = " ".join(text_blobs)
-            # pick a few frequent keywords (letters only)
-            words = re.findall(r"[A-Za-z]{5,}", blob.lower())
-            from collections import Counter
-            top = [w for w, _ in Counter(words).most_common(5)]
-            alt_focus = " ".join(top[:3]) if top else None
-            if alt_focus:
-                result = _gemini_cross_compare(all_claims, focus=alt_focus)
-        except Exception:
-            pass
-    # Cache and respond (optionally include claims for debugging)
-    _cross_insights_cache[cross_key] = result
-    if req.include_claims:
-        return {**result, "claims": all_claims}
-    return result
+        cross_key = _hash_short("|".join(cache_key_parts) + f"|m{request.max_per_doc}|deep{1 if request.deep else 0}|focus{(request.focus or '').strip().lower()}")
+        cached = _cross_insights_cache.get(cross_key)
+        if (not request.force) and (cached is not None):
+            return cached
+
+        result = _gemini_cross_compare(all_claims, focus=request.focus)
+        # Heuristic retry: if both arrays empty but we have many claims, try once more with a narrowed focus built from frequent terms
+        if not result.get("agreements") and not result.get("contradictions") and len(all_claims) >= 4:
+            try:
+                # Build a crude focus from top words across claims/snippets
+                text_blobs = []
+                for c in all_claims[:10]:
+                    if c.get("statement"):
+                        text_blobs.append(str(c.get("statement")))
+                    elif c.get("snippet"):
+                        text_blobs.append(str(c.get("snippet"))[:200])
+                blob = " ".join(text_blobs)
+                # pick a few frequent keywords (letters only)
+                words = re.findall(r"[A-Za-z]{5,}", blob.lower())
+                from collections import Counter
+                top = [w for w, _ in Counter(words).most_common(5)]
+                alt_focus = " ".join(top[:3]) if top else None
+                if alt_focus:
+                    result = _gemini_cross_compare(all_claims, focus=alt_focus)
+            except Exception:
+                pass
+        # Cache and respond (optionally include claims for debugging)
+        _cross_insights_cache[cross_key] = result
+        if request.include_claims:
+            return {**result, "claims": all_claims}
+        return result
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"Error in cross_insights: {str(e)}\n{tb}")
+        raise HTTPException(status_code=500, detail=f"Error processing cross-insights: {str(e)}")
 
 
 class GenerateAudioRequest(BaseModel):
@@ -1125,7 +1267,7 @@ def _gemini_script(text: str, podcast: bool = False, accent: Optional[str] = Non
         return text[:1500]
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-2.5-flash",
         generation_config={
             "response_mime_type": "text/plain"
         }
