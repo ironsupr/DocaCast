@@ -35,10 +35,8 @@ export default function App() {
   const lastCopyTextRef = React.useRef<string>('')
   const lastCopyAtRef = React.useRef<number>(0)
   const [selectionPanelPos, setSelectionPanelPos] = React.useState<{ top: number; left: number } | null>(null)
-  const [podcastReady, setPodcastReady] = React.useState(false)
   const [podcastMeta, setPodcastMeta] = React.useState<{ url: string; parts?: string[]; chapters?: any[] } | null>(null)
   const lastPointerRef = React.useRef<{ x: number; y: number; at: number }>({ x: 0, y: 0, at: 0 })
-  const actionBtnRef = React.useRef<HTMLButtonElement | null>(null)
 
   const onUploaded = (filenames: string[]) => {
     const next = Array.from(new Set([ ...availableFiles, ...filenames ]))
@@ -363,7 +361,7 @@ export default function App() {
               }
               throw new Error('No context available')
             }}
-            onGenerated={(data) => { setPodcastMeta(data); setPodcastReady(true) }}
+            onGenerated={(data) => { setPodcastMeta(data); }}
           />
           <UploadPdfButton onUploaded={onUploaded} />
         </div>

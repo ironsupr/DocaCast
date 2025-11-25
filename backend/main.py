@@ -1828,7 +1828,18 @@ async def generate_audio(req: GenerateAudioRequest):
             print(f"[generate-audio] single-speaker done provider={provider} url={rel_url} elapsed={time.time()-start_ts:.1f}s")
         except Exception:
             pass
-        return {"url": rel_url, "cached": False}
+        
+        # Generate single chapter for subtitles
+        dur = _get_audio_duration(_audio_dir / filename)
+        chapters = [{
+            "index": 0,
+            "speaker": "Narrator",
+            "text": script,
+            "start_ms": 0,
+            "end_ms": int(dur * 1000),
+            "part_url": rel_url,
+        }]
+        return {"url": rel_url, "parts": [rel_url], "chapters": chapters, "cached": False}
 
     # --- Two-speaker podcast flow ---
     # Parse the dialogue into (speaker, line) pairs - support multiple formats robustly
@@ -1880,7 +1891,18 @@ async def generate_audio(req: GenerateAudioRequest):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {e}")
         _audio_cache[audio_key] = (filename, rel_url)
-        return {"url": rel_url, "cached": False}
+        
+        # Generate single chapter for subtitles
+        dur = _get_audio_duration(_audio_dir / filename)
+        chapters = [{
+            "index": 0,
+            "speaker": "Narrator",
+            "text": script,
+            "start_ms": 0,
+            "end_ms": int(dur * 1000),
+            "part_url": rel_url,
+        }]
+        return {"url": rel_url, "parts": [rel_url], "chapters": chapters, "cached": False}
 
     # If Gemini is the provider, prefer single-call multi-speaker synthesis for the whole script
     provider_eff = (os.getenv("TTS_PROVIDER") or "").lower().strip()
@@ -1904,7 +1926,18 @@ async def generate_audio(req: GenerateAudioRequest):
                 print(f"[generate-audio] gemini multi-speaker done url={rel_url} elapsed={time.time()-start_ts:.1f}s")
             except Exception:
                 pass
-            return {"url": rel_url, "cached": False}
+            
+            # Generate single chapter for subtitles
+            dur = _get_audio_duration(_audio_dir / filename)
+            chapters = [{
+                "index": 0,
+                "speaker": "Podcast",
+                "text": script,
+                "start_ms": 0,
+                "end_ms": int(dur * 1000),
+                "part_url": rel_url,
+            }]
+            return {"url": rel_url, "parts": [rel_url], "chapters": chapters, "cached": False}
         except Exception as e:
             try:
                 print(f"[generate-audio] gemini multi-speaker error: {e}")
@@ -2176,8 +2209,18 @@ async def process_document(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
-if __name__ == "__main__":
-    import uvicorn
-    host = os.getenv("UVICORN_HOST", "127.0.0.1")
-    port = int(os.getenv("UVICORN_PORT", "8001"))
-    uvicorn.run("main:app", host=host, port=port, reload=True)
+def _get_audio_duration(path: Path) -> float:
+    """Get duration of audio file in seconds using ffprobe."""
+    try:
+        import subprocess
+        cmd = [
+            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1', path.name
+        ]
+        # Run in the directory of the file to avoid path issues
+        res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(path.parent), timeout=10)
+        if res.returncode == 0 and res.stdout.strip():
+            return float(res.stdout.strip())
+    except Exception:
+        pass
+    return 0.0
