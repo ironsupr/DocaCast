@@ -6,64 +6,6 @@ import PodcastStudio from './components/PodcastStudio'
 import RecommendationsSidebar, { type Recommendation } from './components/RecommendationsSidebar'
 import FilePicker from './components/FilePicker'
 
-// Clean, flat meta strip for podcast details
-function PodcastMetaStrip({ meta }: { meta: { url: string; parts?: any[]; chapters?: any[] } }) {
-  const chapters = Array.isArray(meta.chapters) ? meta.chapters : []
-  const speakers = Array.from(new Set(chapters.map((c: any) => (c.speaker || '').toString().trim()).filter(Boolean)))
-  
-  // Calculate duration
-  let totalMs: number | null = null
-  for (let i = chapters.length - 1; i >= 0; i--) {
-    const c = chapters[i]
-    if (typeof c.end_ms === 'number') { totalMs = c.end_ms; break }
-    if (typeof c.start_ms === 'number') { totalMs = c.start_ms; break }
-  }
-  
-  const fmt = (ms: number | null) => {
-    if (!ms || ms <= 0) return '—:—'
-    const s = Math.floor(ms / 1000)
-    const m = Math.floor(s / 60)
-    const r = s % 60
-    return `${m}:${String(r).padStart(2, '0')}`
-  }
-
-  return (
-    <div style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
-      gap: 16, 
-      padding: '12px 16px', 
-      border: '1px solid #e2e8f0', 
-      borderRadius: 8, 
-      background: '#f8fafc',
-      fontSize: 13,
-      color: '#64748b'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontWeight: 600, color: '#334155' }}>Duration:</span>
-        <span>{fmt(totalMs)}</span>
-      </div>
-      
-      <div style={{ width: 1, height: 16, background: '#cbd5e1' }} />
-      
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontWeight: 600, color: '#334155' }}>Speakers:</span>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {speakers.length > 0 ? speakers.map((s, i) => (
-            <span key={i} style={{ 
-              background: '#e2e8f0', 
-              padding: '2px 8px', 
-              borderRadius: 4, 
-              fontSize: 12,
-              color: '#475569'
-            }}>{s}</span>
-          )) : <span>2 Speakers</span>}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 type InsightsData = {
   key_insights: string[]
   did_you_know_facts: string[]
@@ -368,7 +310,7 @@ export default function App() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Header */}
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid #e5e7eb', background: '#ffffff' }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Connecting the Dots</h1>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>DocaCast</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <FilePicker
             currentFile={currentFile}
@@ -408,6 +350,21 @@ export default function App() {
           >
             💡 Insights
           </button>
+          <GenerateAudioButton
+            getContext={async () => {
+              if (lastSelection && lastSelection.trim().length > 0) {
+                return { text: lastSelection }
+              }
+              if (currentFile && lastPage) {
+                return { filename: currentFile, page_number: lastPage }
+              }
+              if (currentFile) {
+                return { filename: currentFile, page_number: 1 }
+              }
+              throw new Error('No context available')
+            }}
+            onGenerated={(data) => { setPodcastMeta(data); setPodcastReady(true) }}
+          />
           <UploadPdfButton onUploaded={onUploaded} />
         </div>
       </header>
@@ -421,41 +378,6 @@ export default function App() {
               id="adobe-dc-view"
               style={{ width: '100%', height: '100%', minHeight: 400, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}
             />
-
-            {/* Always-available Actions button */}
-            <button
-              ref={actionBtnRef}
-              title="Actions"
-              onClick={() => {
-                // Place panel near the button
-                try {
-                  const btn = actionBtnRef.current
-                  const container = viewerContainerRef.current
-                  if (btn && container) {
-                    const b = btn.getBoundingClientRect()
-                    const c = container.getBoundingClientRect()
-                    const left = Math.max(8, Math.min(b.left - c.left - 8, c.width - 260))
-                    const top = Math.max(8, Math.min(b.top - c.top - 8, c.height - 56))
-                    setSelectionPanelPos({ top, left })
-                  }
-                } catch {}
-                setSelectionPanelVisible(true)
-              }}
-              style={{
-                position: 'absolute',
-                right: 12,
-                bottom: 12,
-                padding: '8px 12px',
-                borderRadius: 999,
-                border: '1px solid #e5e7eb',
-                background: '#ffffff',
-                cursor: 'pointer',
-                boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
-                zIndex: 2147483647,
-              }}
-            >
-              ⚙️ Actions
-            </button>
 
             {/* Floating selection actions */}
             {selectionPanelVisible && (
@@ -511,7 +433,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Right Column: Recommendations + Podcast */}
+        {/* Right Column: Recommendations Only */}
         <div style={{ 
           width: 380, 
           display: 'flex', 
@@ -524,7 +446,6 @@ export default function App() {
           <div style={{ 
             flex: 1, 
             minHeight: 0,
-            borderBottom: '1px solid #e2e8f0',
             background: '#ffffff',
             display: 'flex',
             flexDirection: 'column',
@@ -563,99 +484,11 @@ export default function App() {
               />
             </div>
           </div>
-
-          {/* Podcast Section */}
-          <div style={{
-            flex: 1,
-            minHeight: 0,
-            background: '#ffffff',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid #f1f5f9',
-              background: '#f8fafc',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <h3 style={{ 
-                margin: 0, 
-                fontSize: 14, 
-                fontWeight: 700, 
-                color: '#374151',
-                letterSpacing: '-0.025em',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8
-              }}>
-                <span>🎙️</span> Podcast Studio
-              </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {podcastReady && (
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: '#16a34a',
-                    background: '#dcfce7',
-                    padding: '2px 8px',
-                    borderRadius: 999,
-                    border: '1px solid #bbf7d0'
-                  }}>Ready</span>
-                )}
-                <GenerateAudioButton
-                  getContext={async () => {
-                    if (lastSelection && lastSelection.trim().length > 0) {
-                      return { text: lastSelection }
-                    }
-                    if (currentFile && lastPage) {
-                      return { filename: currentFile, page_number: lastPage }
-                    }
-                    if (currentFile) {
-                      return { filename: currentFile, page_number: 1 }
-                    }
-                    throw new Error('No context available')
-                  }}
-                  onGenerated={(data) => { setPodcastMeta(data); setPodcastReady(true) }}
-                />
-              </div>
-            </div>
-
-            <div style={{ 
-              flex: 1, 
-              overflow: 'auto', 
-              padding: 16, 
-              display: 'flex', 
-              flexDirection: 'column',
-              gap: 16
-            }}>
-              {!podcastMeta ? (
-                <div style={{ 
-                  flex: 1, 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  color: '#94a3b8',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>🎧</div>
-                  <p style={{ margin: 0, fontSize: 14 }}>Generate a podcast to get started</p>
-                </div>
-              ) : (
-                <>
-                  <PodcastMetaStrip meta={podcastMeta} />
-                  <div style={{ flex: 1, minHeight: 0 }}>
-                    <PodcastStudio meta={podcastMeta} />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
         </div>
       </main>
+
+      {/* Bottom Player */}
+      {podcastMeta && <PodcastStudio meta={podcastMeta} onClose={() => setPodcastMeta(null)} />}
 
       {/* Insights Modal */}
       {showInsights && (
