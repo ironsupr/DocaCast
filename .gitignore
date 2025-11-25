@@ -206,3 +206,4 @@ service-account-*.json
 credentials.json
 .credentials/
 secrets/
+test_all_endpoints.py
