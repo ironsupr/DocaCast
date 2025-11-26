@@ -63,11 +63,11 @@ export default function GenerateAudioButton({ getContext, onGenerated }: Props) 
         style={{
           padding: '6px 8px',
           borderRadius: 6,
-          border: '1px solid #d1d5db',
-          background: '#fff',
+          border: '1px solid var(--border-color)',
+          background: 'var(--bg-primary)',
           fontSize: 11,
           fontWeight: 500,
-          color: '#374151'
+          color: 'var(--text-secondary)'
         }}
       >
         <option value="single">👤 Single</option>
@@ -81,9 +81,9 @@ export default function GenerateAudioButton({ getContext, onGenerated }: Props) 
         style={{ 
           padding: '8px 12px', 
           borderRadius: 8, 
-          border: '1px solid #3b82f6', 
-          background: loading ? '#f3f4f6' : '#3b82f6', 
-          color: loading ? '#6b7280' : '#fff',
+          border: '1px solid var(--accent-primary)', 
+          background: loading ? 'var(--bg-hover)' : 'var(--accent-primary)', 
+          color: loading ? 'var(--text-muted)' : '#fff',
           cursor: loading ? 'not-allowed' : 'pointer',
           fontWeight: 600,
           fontSize: 12,

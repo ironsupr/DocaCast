@@ -42,7 +42,7 @@ export default function RecommendationsSidebar({ items, onClickItem }: Props) {
         <div style={{ 
           padding: 16,
           textAlign: 'center',
-          color: '#6b7280',
+          color: 'var(--text-muted)',
           fontSize: 13
         }}>
           <div style={{ fontSize: 24, marginBottom: 8 }}>📄</div>
@@ -62,33 +62,33 @@ export default function RecommendationsSidebar({ items, onClickItem }: Props) {
             const dlUrl = rec.filename ? `${apiBase}/document_library/${encodeURIComponent(rec.filename)}` : undefined
 
       return (
-              <div key={idx} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12 }}>
+              <div key={idx} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
         {fileLabel} • Page {rec.page_number ?? '-'}{rec.section_title ? ` • ${rec.section_title}` : ''}
                   </div>
                   {scorePct !== null && (
-                    <span style={{ fontSize: 12, color: '#065f46', background: '#d1fae5', border: '1px solid #10b981', borderRadius: 999, padding: '2px 8px' }}>
+                    <span style={{ fontSize: 12, color: 'var(--success-text)', background: 'var(--success-bg)', border: '1px solid var(--success-border)', borderRadius: 999, padding: '2px 8px' }}>
                       {scorePct}%
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 14, color: '#111827', whiteSpace: 'pre-wrap' }}>{shown}{!showAll && hasMore ? '…' : ''}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{shown}{!showAll && hasMore ? '…' : ''}</div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                  <button onClick={() => onClickItem?.(rec)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>Open</button>
-                  <button onClick={() => copySnippet(text, idx)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
+                  <button onClick={() => onClickItem?.(rec)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>Open</button>
+                  <button onClick={() => copySnippet(text, idx)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     {copiedIdx === idx ? 'Copied' : 'Copy'}
                   </button>
                   {dlUrl && (
-                    <a href={dlUrl} target="_blank" rel="noreferrer" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', textDecoration: 'none', color: '#111827' }}>
+                    <a href={dlUrl} target="_blank" rel="noreferrer" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', cursor: 'pointer', textDecoration: 'none', color: 'var(--text-primary)' }}>
                       Download
                     </a>
                   )}
-                  <button onClick={() => togglePin(rec)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: isPinned ? '#fde68a' : '#fff', cursor: 'pointer' }}>
+                  <button onClick={() => togglePin(rec)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: isPinned ? 'var(--warning-bg)' : 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     {isPinned ? 'Pinned' : 'Pin'}
                   </button>
                   {hasMore && (
-                    <button onClick={() => toggleExpand(idx)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
+                    <button onClick={() => toggleExpand(idx)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                       {showAll ? 'Show less' : 'Show more'}
                     </button>
                   )}

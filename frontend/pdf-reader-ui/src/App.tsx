@@ -5,6 +5,7 @@ import GenerateAudioButton from './components/GenerateAudioButton'
 import PodcastStudio from './components/PodcastStudio'
 import RecommendationsSidebar, { type Recommendation } from './components/RecommendationsSidebar'
 import FilePicker from './components/FilePicker'
+import ThemeToggle, { useTheme } from './components/ThemeToggle'
 
 type InsightsData = {
   key_insights: string[]
@@ -16,6 +17,7 @@ type InsightsData = {
 }
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme()
   const [availableFiles, setAvailableFiles] = React.useState<string[]>([])
   const [currentFile, setCurrentFile] = React.useState<string | null>(null)
   const [filesRefreshTick, setFilesRefreshTick] = React.useState(0)
@@ -305,11 +307,11 @@ export default function App() {
   }, [lastSelection, currentFile, lastPage])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Inter, system-ui, sans-serif', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid #e5e7eb', background: '#ffffff' }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>DocaCast</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-primary)' }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>DocaCast</h1>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <FilePicker
             currentFile={currentFile}
             onChange={(f) => setCurrentFile(f)}
@@ -344,7 +346,7 @@ export default function App() {
               }
             }}
             title="Get insights (from selection or current page)"
-            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}
+            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
           >
             💡 Insights
           </button>
@@ -364,17 +366,18 @@ export default function App() {
             onGenerated={(data) => { setPodcastMeta(data); }}
           />
           <UploadPdfButton onUploaded={onUploaded} />
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
       </header>
 
       {/* Main content area: left (PDF viewer) + right (recommendations) */}
-      <main style={{ display: 'flex', flex: 1, minHeight: 0, background: '#fafafa' }}>
+      <main style={{ display: 'flex', flex: 1, minHeight: 0, background: 'var(--bg-secondary)' }}>
         {/* PDF Viewer Column */}
         <section style={{ flex: 1, padding: 16, minWidth: 0 }}>
           <div ref={viewerContainerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div
               id="adobe-dc-view"
-              style={{ width: '100%', height: '100%', minHeight: 400, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}
+              style={{ width: '100%', height: '100%', minHeight: 400, background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 8 }}
             />
 
             {/* Floating selection actions */}
@@ -390,16 +393,16 @@ export default function App() {
       ...(selectionPanelPos ? {} : { top: 12 }),
                   display: 'flex',
                   gap: 8,
-                  background: '#ffffff',
-                  border: '1px solid #e5e7eb',
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border-color)',
                   borderRadius: 999,
                   padding: '6px 8px',
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
+                  boxShadow: 'var(--shadow-lg)',
                   alignItems: 'center',
                   zIndex: 2147483647,
                 }}
               >
-                <span style={{ maxWidth: 280, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#6b7280', fontSize: 12 }} title={lastSelection || (currentFile ? `${currentFile}${lastPage ? ` p.${lastPage}` : ''}` : 'Context')}>
+                <span style={{ maxWidth: 280, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-muted)', fontSize: 12 }} title={lastSelection || (currentFile ? `${currentFile}${lastPage ? ` p.${lastPage}` : ''}` : 'Context')}>
                   {(lastSelection && lastSelection.trim().length > 0)
                     ? `“${lastSelection}”`
                     : (currentFile ? `${currentFile}${lastPage ? ` • p.${lastPage}` : ''}` : 'Context')}
@@ -407,14 +410,14 @@ export default function App() {
                 <button
                   onClick={() => { runRecommendationsAuto(); pokeSelectionHideTimer() }}
                   title="Find related snippets (selection or current page)"
-                  style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer' }}
+                  style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}
                 >
                   🔎 Recommend
                 </button>
                 <button
                   onClick={() => { runInsightsAuto(); pokeSelectionHideTimer() }}
                   title="Analyze (selection or current page)"
-                  style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer' }}
+                  style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}
                 >
                   💡 Insights
                 </button>
@@ -422,7 +425,7 @@ export default function App() {
                   onClick={() => { setSelectionPanelVisible(false) }}
                   aria-label="Close"
                   title="Close"
-                  style={{ background: 'transparent', border: 'none', fontSize: 16, lineHeight: 1, cursor: 'pointer', color: '#6b7280' }}
+                  style={{ background: 'transparent', border: 'none', fontSize: 16, lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)' }}
                 >
                   ✖
                 </button>
@@ -436,29 +439,29 @@ export default function App() {
           width: 380, 
           display: 'flex', 
           flexDirection: 'column', 
-          borderLeft: '1px solid #e5e7eb', 
-          background: '#ffffff',
+          borderLeft: '1px solid var(--border-color)', 
+          background: 'var(--bg-primary)',
           height: '100%'
         }}>
           {/* Recommendations Section */}
           <div style={{ 
             flex: 1, 
             minHeight: 0,
-            background: '#ffffff',
+            background: 'var(--bg-primary)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden'
           }}>
             <div style={{
               padding: '12px 16px',
-              borderBottom: '1px solid #f1f5f9',
-              background: '#f8fafc',
+              borderBottom: '1px solid var(--border-light)',
+              background: 'var(--bg-secondary)',
             }}>
               <h3 style={{ 
                 margin: 0, 
                 fontSize: 14, 
                 fontWeight: 700, 
-                color: '#374151',
+                color: 'var(--text-secondary)',
                 letterSpacing: '-0.025em'
               }}>
                 📋 Recommendations
@@ -494,22 +497,22 @@ export default function App() {
           role="dialog"
           aria-modal="true"
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            position: 'fixed', inset: 0, background: 'var(--overlay-bg)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
           }}
           onClick={() => setShowInsights(false)}
         >
           <div
-            style={{ width: 'min(800px, 95vw)', maxHeight: '85vh', overflow: 'auto', background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 16 }}
+            style={{ width: 'min(800px, 95vw)', maxHeight: '85vh', overflow: 'auto', background: 'var(--bg-primary)', borderRadius: 10, border: '1px solid var(--border-color)', padding: 16, color: 'var(--text-primary)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <h2 style={{ margin: 0, fontSize: 18 }}>Insights</h2>
-              <button onClick={() => setShowInsights(false)} style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer' }}>✖</button>
+              <button onClick={() => setShowInsights(false)} style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-primary)' }}>✖</button>
             </div>
 
-            {insightsLoading && <div style={{ padding: 12, textAlign: 'center', color: '#6b7280' }}>🔍 Analyzing content...</div>}
-            {insightsError && <div style={{ padding: 12, color: '#b91c1c', background: '#fef2f2', borderRadius: 8, border: '1px solid #fca5a5' }}>❌ Error: {insightsError}</div>}
+            {insightsLoading && <div style={{ padding: 12, textAlign: 'center', color: 'var(--text-muted)' }}>🔍 Analyzing content...</div>}
+            {insightsError && <div style={{ padding: 12, color: 'var(--error-text)', background: 'var(--error-bg)', borderRadius: 8, border: '1px solid var(--error-border)' }}>❌ Error: {insightsError}</div>}
 
             {insightsData && (
               <div style={{ display: 'grid', gap: 12 }}>
@@ -518,14 +521,14 @@ export default function App() {
                  (!insightsData.counterpoints || insightsData.counterpoints.length === 0) && 
                  (!insightsData.inspirations || insightsData.inspirations.length === 0) && 
                  (!insightsData.examples || insightsData.examples.length === 0) && (
-                  <div style={{ padding: 20, textAlign: 'center', color: '#6b7280', background: '#f9fafb', borderRadius: 8 }}>
+                  <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 8 }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>🤔</div>
                     <div>No insights generated. The content may be too short or lack sufficient context.</div>
                   </div>
                 )}
                 {insightsData.key_insights && insightsData.key_insights.length > 0 && (
                   <section>
-                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Key Insights</h3>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: 'var(--text-primary)' }}>Key Insights</h3>
                     <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
                       {insightsData.key_insights.map((s, i) => <li key={`ins-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
                     </ul>
@@ -533,7 +536,7 @@ export default function App() {
                 )}
                 {insightsData.did_you_know_facts && insightsData.did_you_know_facts.length > 0 && (
                   <section>
-                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Did You Know?</h3>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: 'var(--text-primary)' }}>Did You Know?</h3>
                     <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
                       {insightsData.did_you_know_facts.map((s, i) => <li key={`fact-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
                     </ul>
@@ -541,7 +544,7 @@ export default function App() {
                 )}
                 {insightsData.counterpoints && insightsData.counterpoints.length > 0 && (
                   <section>
-                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Counterpoints</h3>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: 'var(--text-primary)' }}>Counterpoints</h3>
                     <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
                       {insightsData.counterpoints.map((s, i) => <li key={`con-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
                     </ul>
@@ -549,7 +552,7 @@ export default function App() {
                 )}
                 {insightsData.inspirations && insightsData.inspirations.length > 0 && (
                   <section>
-                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Inspirations</h3>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: 'var(--text-primary)' }}>Inspirations</h3>
                     <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
                       {insightsData.inspirations.map((s, i) => <li key={`insp-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
                     </ul>
@@ -557,7 +560,7 @@ export default function App() {
                 )}
                 {insightsData.examples && insightsData.examples.length > 0 && (
                   <section>
-                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Examples</h3>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: 'var(--text-primary)' }}>Examples</h3>
                     <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
                       {insightsData.examples.map((s, i) => <li key={`ex-${i}`} style={{ marginBottom: 6 }}>{s}</li>)}
                     </ul>
@@ -565,7 +568,7 @@ export default function App() {
                 )}
                 {insightsData.citations && insightsData.citations.length > 0 && (
                   <section>
-                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: '#111827' }}>Citations</h3>
+                    <h3 style={{ margin: '8px 0', fontWeight: 600, color: 'var(--text-primary)' }}>Citations</h3>
                     <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
                       {insightsData.citations.map((c, i) => (
                         <li key={`cit-${i}`}>
@@ -579,12 +582,12 @@ export default function App() {
                                 gotoPage(c.page_number)
                               }
                             }}
-                            style={{ background: 'transparent', border: 'none', color: '#2563eb', cursor: 'pointer', padding: 0 }}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', padding: 0 }}
                             title={`Open ${c.filename || ''} p.${c.page_number || ''}`}
                           >
                             {c.filename || 'document'} p.{c.page_number}
                           </button>
-                          {c.snippet && <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>{c.snippet}</div>}
+                          {c.snippet && <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{c.snippet}</div>}
                         </li>
                       ))}
                     </ul>

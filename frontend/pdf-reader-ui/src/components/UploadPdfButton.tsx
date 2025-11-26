@@ -51,9 +51,9 @@ export default function UploadPdfButton({ onUploaded }: Props) {
         style={{
           padding: '8px 14px',
           borderRadius: 8,
-          border: '1px solid #d1d5db',
-          background: '#111827',
-          color: '#fff',
+          border: '1px solid var(--border-color)',
+          background: 'var(--text-primary)',
+          color: 'var(--bg-primary)',
           cursor: 'pointer',
         }}
       >

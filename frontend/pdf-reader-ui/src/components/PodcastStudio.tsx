@@ -194,7 +194,7 @@ export default function PodcastStudio({ meta, onClose }: Props) {
 
 				{/* Right: Volume & Extras */}
 				<div className="player-right">
-					{errorMsg && <span style={{ color: '#ef4444', fontSize: 11 }}>{errorMsg}</span>}
+                {errorMsg && <span style={{ color: 'var(--error-text)', fontSize: 11 }}>{errorMsg}</span>}
 					
 					<div className="volume-container">
 						<div className="volume-icon"><IconVolume /></div>
@@ -229,7 +229,7 @@ export default function PodcastStudio({ meta, onClose }: Props) {
 						className={`control-btn ${showTranscript ? 'active' : ''}`} 
 						onClick={() => setShowTranscript(!showTranscript)}
 						title="Toggle Subtitles"
-						style={{ color: showTranscript ? '#3b82f6' : undefined }}
+                    style={{ color: showTranscript ? 'var(--accent-primary)' : undefined }}
 					>
 						<IconScript />
 					</button>

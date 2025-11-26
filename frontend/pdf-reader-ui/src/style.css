@@ -1,16 +1,119 @@
-:root {
+/* Theme CSS Variables */
+:root,
+[data-theme="light"] {
+  /* Background colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f1f5f9;
+  --bg-hover: #f3f4f6;
+  
+  /* Text colors */
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
+  --text-light: #9ca3af;
+  
+  /* Border colors */
+  --border-color: #e5e7eb;
+  --border-light: #f1f5f9;
+  
+  /* Accent colors */
+  --accent-primary: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-light: rgba(59, 130, 246, 0.1);
+  --accent-bg-hover: rgba(59, 130, 246, 0.08);
+  
+  /* Status colors */
+  --error-bg: #fef2f2;
+  --error-border: #fca5a5;
+  --error-text: #b91c1c;
+  --success-bg: #d1fae5;
+  --success-border: #10b981;
+  --success-text: #065f46;
+  --warning-bg: #fde68a;
+  --warning-border: #f59e0b;
+  --warning-text: #92400e;
+  
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  
+  /* Modal overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.45);
+  
+  /* Player-specific */
+  --player-bg: rgba(255, 255, 255, 0.95);
+  --play-btn-bg: #0f172a;
+  --play-btn-color: #ffffff;
+  --play-btn-hover-bg: #1e293b;
+  --progress-bg: #e2e8f0;
+
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: light;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme="dark"] {
+  /* Background colors */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #171717;
+  --bg-hover: #262626;
+  
+  /* Text colors */
+  --text-primary: #fafafa;
+  --text-secondary: #e5e5e5;
+  --text-muted: #a3a3a3;
+  --text-light: #737373;
+  
+  /* Border colors */
+  --border-color: #262626;
+  --border-light: #171717;
+  
+  /* Accent colors */
+  --accent-primary: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-light: rgba(59, 130, 246, 0.15);
+  --accent-bg-hover: rgba(59, 130, 246, 0.12);
+  
+  /* Status colors */
+  --error-bg: #450a0a;
+  --error-border: #7f1d1d;
+  --error-text: #fca5a5;
+  --success-bg: #052e16;
+  --success-border: #166534;
+  --success-text: #86efac;
+  --warning-bg: #422006;
+  --warning-border: #a16207;
+  --warning-text: #fde047;
+  
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.7);
+  
+  /* Modal overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.85);
+  
+  /* Player-specific */
+  --player-bg: rgba(10, 10, 10, 0.95);
+  --play-btn-bg: #3b82f6;
+  --play-btn-color: #000000;
+  --play-btn-hover-bg: #2563eb;
+  --progress-bg: #404040;
+  
+  color-scheme: dark;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
 }
 
 a {
@@ -24,9 +127,15 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#root {
+  width: 100%;
   min-height: 100vh;
 }
 
@@ -70,9 +179,10 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: border-color 0.25s, background-color 0.25s, color 0.25s;
 }
 button:hover {
   border-color: #646cff;
@@ -80,17 +190,4 @@ button:hover {
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
 }

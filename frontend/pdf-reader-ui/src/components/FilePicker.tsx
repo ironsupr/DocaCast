@@ -35,12 +35,12 @@ export default function FilePicker({ currentFile, onChange, refreshKey }: Props)
 
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-      <label htmlFor="pdf-select" style={{ fontSize: 12, color: '#6b7280' }}>File:</label>
+      <label htmlFor="pdf-select" style={{ fontSize: 12, color: 'var(--text-muted)' }}>File:</label>
       <select
         id="pdf-select"
         value={currentFile || ''}
         onChange={(e) => onChange(e.target.value)}
-        style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff' }}
+        style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
       >
         <option value="" disabled>
           {loading ? 'Loading…' : (files.length ? 'Select a file' : 'No files')}
@@ -49,8 +49,8 @@ export default function FilePicker({ currentFile, onChange, refreshKey }: Props)
           <option key={f} value={f}>{f}</option>
         ))}
       </select>
-      <button onClick={load} title="Refresh list" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff' }}>↻</button>
-      {error && <span style={{ color: '#b91c1c', fontSize: 12 }}>{error}</span>}
+      <button onClick={load} title="Refresh list" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>↻</button>
+      {error && <span style={{ color: 'var(--error-text)', fontSize: 12 }}>{error}</span>}
     </div>
   )
 }
