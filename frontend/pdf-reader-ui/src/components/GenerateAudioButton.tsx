@@ -61,13 +61,16 @@ export default function GenerateAudioButton({ getContext, onGenerated }: Props) 
         value={mode}
         onChange={(e) => setMode(e.target.value as 'single' | 'two')}
         style={{
-          padding: '6px 8px',
-          borderRadius: 6,
+          padding: '8px 12px',
+          borderRadius: 10,
           border: '1px solid var(--border-color)',
-          background: 'var(--bg-primary)',
-          fontSize: 11,
+          background: 'var(--bg-secondary)',
+          fontSize: 12,
           fontWeight: 500,
-          color: 'var(--text-secondary)'
+          color: 'var(--text-primary)',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          outline: 'none',
         }}
       >
         <option value="single">👤 Single</option>
@@ -76,25 +79,63 @@ export default function GenerateAudioButton({ getContext, onGenerated }: Props) 
       
       <button
         onClick={onClick}
-    disabled={loading}
-  title={mode === 'single' ? 'Generate single narrator' : 'Generate podcast with Charon & Puck'}
+        disabled={loading}
+        title={mode === 'single' ? 'Generate single narrator' : 'Generate podcast with Charon & Puck'}
         style={{ 
-          padding: '8px 12px', 
-          borderRadius: 8, 
-          border: '1px solid var(--accent-primary)', 
-          background: loading ? 'var(--bg-hover)' : 'var(--accent-primary)', 
-          color: loading ? 'var(--text-muted)' : '#fff',
+          padding: '10px 18px', 
+          borderRadius: 12, 
+          border: '1px solid var(--border-color)',
+          background: loading 
+            ? 'var(--bg-tertiary)' 
+            : 'var(--bg-primary)',
+          color: loading ? 'var(--text-muted)' : 'var(--text-primary)',
           cursor: loading ? 'not-allowed' : 'pointer',
           fontWeight: 600,
-          fontSize: 12,
+          fontSize: 13,
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)'
+          gap: 8,
+          boxShadow: 'var(--shadow-sm)',
+          transition: 'all 0.25s ease',
+          letterSpacing: '0.02em',
+        }}
+        onMouseEnter={(e) => {
+          if (!loading) {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+            e.currentTarget.style.borderColor = 'var(--accent-primary)';
+            e.currentTarget.style.color = 'var(--accent-primary)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+          e.currentTarget.style.borderColor = 'var(--border-color)';
+          e.currentTarget.style.color = loading ? 'var(--text-muted)' : 'var(--text-primary)';
         }}
       >
-        {loading ? '⏳ Generating...' : '🎙️ Narrate'}
+        {loading ? (
+          <>
+            <span style={{ 
+              display: 'inline-block', 
+              animation: 'spin 1s linear infinite',
+              fontSize: 14 
+            }}>⏳</span>
+            Generating...
+          </>
+        ) : (
+          <>
+            <span style={{ fontSize: 15 }}>🎙️</span>
+            Narrate
+          </>
+        )}
       </button>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }

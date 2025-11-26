@@ -1,5 +1,6 @@
 import React from 'react'
-import SkyToggle from './ui/SkyToggle'
+import { Switch } from './ui/SwitchButton'
+import { Sun, Moon } from 'lucide-react'
 
 type Theme = 'light' | 'dark'
 
@@ -65,9 +66,11 @@ type Props = {
 
 export default function ThemeToggle({ theme, onToggle }: Props) {
   return (
-    <SkyToggle 
-      checked={theme === 'dark'} 
-      onChange={() => onToggle()} 
+    <Switch 
+      value={theme === 'dark'} 
+      onToggle={onToggle}
+      iconOn={<Moon size={16} />}
+      iconOff={<Sun size={16} />}
     />
   )
 }
